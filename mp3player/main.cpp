@@ -9,7 +9,10 @@ int main(int argc, char *argv[])
     w.setFixedHeight(w.height());
     w.setFixedWidth(w.width());
     w.setWindowTitle("Abby's MP3 Player");
-    w.setup("/Data/Music");
+    if(argc != 2)
+        w.setup("/Data/Music");
+    else
+        w.setup(argv[1]);
     w.show();
 
     return a.exec();

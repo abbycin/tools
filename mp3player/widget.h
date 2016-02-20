@@ -34,7 +34,9 @@ private slots:
 
     void on_shuffle_clicked();
 
-    void on_volume_bar_sliderReleased();
+    void on_volume_bar_valueChanged(int value);
+
+    void on_currentMediaChanged(QMediaContent media);
 
 private:
     Ui::Widget *ui;
@@ -44,6 +46,8 @@ private:
     bool everything_ok;
 
     int load();
+
+    QString current_playing();
 };
 
 #endif // WIDGET_H

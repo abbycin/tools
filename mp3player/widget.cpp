@@ -1,5 +1,6 @@
 #include "widget.h"
 #include "ui_widget.h"
+#include <QTextStream>
 
 Widget::Widget(QWidget *parent) :
     QWidget(parent),
@@ -11,6 +12,7 @@ Widget::Widget(QWidget *parent) :
         player = new QMediaPlayer(this);
     ui->setupUi(this);
     everything_ok = true;
+    connect(player, SIGNAL(currentMediaChanged(QMediaContent)), this, SLOT(on_currentMediaChanged(QMediaContent)));
 }
 
 Widget::~Widget()
@@ -41,6 +43,13 @@ int Widget::load()
     return 0;
 }
 
+QString Widget::current_playing()
+{
+    auto raw = list.currentMedia().canonicalUrl().path().split('/');
+    auto res = raw[raw.size() - 1];
+    return res;
+}
+
 void Widget::setup(const QString &path)
 {
     music_path = path;
@@ -64,20 +73,18 @@ void Widget::on_start_clicked()
 {
     if(!everything_ok)
         return;
-    auto raw = list.currentMedia().canonicalUrl().path();
-    auto song = raw.split('/');
     QString display;
     if(player->state() == QMediaPlayer::PlayingState)
     {
         display = "Paused: ";
-        display += song[song.size() - 1];
+        display += current_playing();
         ui->song_label->setText(display);
         player->pause();
     }
     else
     {
         display = "Playing: ";
-        display += song[song.size() - 1];
+        display += current_playing();
         ui->song_label->setText(display);
         player->play();
     }
@@ -87,35 +94,42 @@ void Widget::on_next_clicked()
 {
     if(!everything_ok)
         return;
-    on_start_clicked();
+    player->stop();
     player->playlist()->next();
-    on_start_clicked();
+    player->play();
 }
 
 void Widget::on_prev_clicked()
 {
     if(!everything_ok)
         return;
-    if(player->state() == QMediaPlayer::PlayingState)
-        on_start_clicked();
+    player->stop();
     player->playlist()->previous();
-    on_start_clicked();
+    player->play();
 }
 
 void Widget::on_shuffle_clicked()
 {
     if(!everything_ok)
         return;
-    if(player->state() == QMediaPlayer::PlayingState)
-        player->stop();
+    player->stop();
     player->playlist()->shuffle();
-    on_start_clicked();
+    player->play();
 }
 
-void Widget::on_volume_bar_sliderReleased()
+void Widget::on_volume_bar_valueChanged(int value)
 {
     if(!everything_ok)
         return;
-    player->setVolume(ui->volume_bar->value());
-    ui->volume_label->setText(QString::number(ui->volume_bar->value()));
+    player->setVolume(value);
+    ui->volume_label->setText(QString::number(value));
+}
+
+void Widget::on_currentMediaChanged(QMediaContent media)
+{
+    auto x = media.canonicalUrl().path().split('/');
+    QString s = "Playing: ";
+    if(x.size() > 0)
+        s += x[x.size() - 1];
+    ui->song_label->setText(s);
 }
