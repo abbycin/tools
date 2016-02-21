@@ -1,6 +1,5 @@
 #include "widget.h"
 #include "ui_widget.h"
-#include <QTextStream>
 
 Widget::Widget(QWidget *parent) :
     QWidget(parent),
@@ -102,7 +101,7 @@ void Widget::on_next_clicked()
         return;
     player->stop();
     player->playlist()->next();
-    player->play();
+    on_start_clicked();
 }
 
 void Widget::on_prev_clicked()
@@ -111,7 +110,7 @@ void Widget::on_prev_clicked()
         return;
     player->stop();
     player->playlist()->previous();
-    player->play();
+    on_start_clicked();
 }
 
 void Widget::on_shuffle_clicked()
@@ -120,7 +119,7 @@ void Widget::on_shuffle_clicked()
         return;
     player->stop();
     player->playlist()->shuffle();
-    player->play();
+    on_start_clicked();
 }
 
 void Widget::on_volume_bar_valueChanged(int value)

@@ -1,9 +1,5 @@
 #ifndef WIDGET_H
 #define WIDGET_H
-//
-#if !defined(__linux__) && !defined(__FreeBSD__)  && !defined(__APPLE__)
-#error "platform not support!"
-#endif
 
 #include <QWidget>
 #include <QtMultimedia/QMediaPlayer>
