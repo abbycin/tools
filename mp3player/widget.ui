@@ -13,27 +13,11 @@
   <property name="windowTitle">
    <string>Widget</string>
   </property>
-  <widget class="QLabel" name="song_label">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>60</y>
-     <width>351</width>
-     <height>41</height>
-    </rect>
-   </property>
-   <property name="styleSheet">
-    <string notr="true">border: 1px solid red</string>
-   </property>
-   <property name="text">
-    <string>TextLabel</string>
-   </property>
-  </widget>
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>110</y>
+     <x>20</x>
+     <y>120</y>
      <width>356</width>
      <height>31</height>
     </rect>
@@ -69,44 +53,41 @@
     </item>
    </layout>
   </widget>
-  <widget class="QWidget" name="">
+  <widget class="QSlider" name="volume_bar">
    <property name="geometry">
     <rect>
-     <x>30</x>
-     <y>160</y>
+     <x>80</x>
+     <y>200</y>
+     <width>281</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <property name="orientation">
+    <enum>Qt::Horizontal</enum>
+   </property>
+  </widget>
+  <widget class="QLabel" name="volume_label">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>190</y>
+     <width>42</width>
+     <height>39</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>volume</string>
+   </property>
+  </widget>
+  <widget class="QTextBrowser" name="song_label">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>50</y>
      <width>351</width>
      <height>41</height>
     </rect>
    </property>
-   <layout class="QHBoxLayout" name="horizontalLayout_2">
-    <item>
-     <widget class="QLabel" name="volume_label">
-      <property name="text">
-       <string>volume</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <spacer name="horizontalSpacer">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <property name="sizeHint" stdset="0">
-       <size>
-        <width>40</width>
-        <height>20</height>
-       </size>
-      </property>
-     </spacer>
-    </item>
-    <item>
-     <widget class="QSlider" name="volume_bar">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-     </widget>
-    </item>
-   </layout>
   </widget>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
