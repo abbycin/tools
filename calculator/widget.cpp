@@ -31,7 +31,7 @@ std::vector<std::string> Widget::split(QString &s)
         }
         else if(token.find(x) != token.npos)
         {
-            if(x == '.')
+            if(x == '.' || x == '-')
                 number.append(x);
             else
             {

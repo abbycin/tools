@@ -14,14 +14,18 @@
 bool is_digit(std::string &s)
 {
     int count = 0;
+    int minus_count = 0;
     for(auto &x: s)
     {
         if('0' > x || x > '9')
         {
-            if(x != '.')
+            if(x != '.' && x != '-')
                 return false;
-            count += 1;
-            if(count > 1)
+            if(x == '.')
+                count += 1;
+            if(x == '-')
+                minus_count += 1;
+            if(count > 1 || minus_count > 1)
             {
                 std::cerr << "bad expression!\n";
                 exit(1);
@@ -200,6 +204,11 @@ int main(int argc, char *argv[])
     if(argc < 2)
         return -1;
     auto input = split(argv[1], ' ');
+    /*
+    std::vector<std::string> input;
+    for(int i = 0; i < argc; ++i)
+        input.push_back(argv[i]);
+    */
 
     auto tmp = get_res(input);
     std::stack<std::string> rpn;

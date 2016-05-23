@@ -22,20 +22,23 @@ namespace rpn
     inline static bool is_digit(const std::string &s)
     {
         int count = 0;
+        int minus_count = 0;
         for(auto &x: s)
         {
             if('0' > x || x > '9')
             {
-                if(x != '.')
+                if(x != '.' && x != '-')
                     return false;
-                count += 1;
-                if(count > 1)
+                if(x == '.')
+                    count += 1;
+                if(x == '-')
+                    minus_count += 1;
+                if(count > 1 || minus_count > 1)
                 {
                     throw std::runtime_error("bad expression!");
                 }
             }
         }
-
         return true;
     }
 
