@@ -15,6 +15,8 @@ bool is_digit(std::string &s)
 {
     int count = 0;
     int minus_count = 0;
+    if(s.size() == 1 && (s[0] == '.' || s[0] == '-'))
+      return false;
     for(auto &x: s)
     {
         if('0' > x || x > '9')
