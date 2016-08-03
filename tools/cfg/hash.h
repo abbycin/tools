@@ -155,6 +155,7 @@ namespace nm
         }
         uint32_t insert(const std::string& key, const std::string& obj)
         {
+          bool is_new_entery = true;
           uint32_t h = murmurhash2(key.data(), key.size(), 0);
           node** ptr = find_(key, h);
           node* old = *ptr;
@@ -170,6 +171,7 @@ namespace nm
             }
             else
             {
+              is_new_entery = false;
               node* tmp = old;
               old = tmp->next;
               delete tmp;
@@ -180,7 +182,8 @@ namespace nm
           *ptr = item;
           if(old == nullptr)
           {
-            ++size_;
+            if(is_new_entery)
+              ++size_;
             if(size_ > limit_)
               resize_();
           }

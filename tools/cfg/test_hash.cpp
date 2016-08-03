@@ -25,15 +25,18 @@ int main()
   };
   travel(iter); // iterator no longer vaild
   iter = h.search("key");
-  std::cout << "sibling: " << iter->dup_count << std::endl;
+  if(iter.is_vaild())
+    std::cout << "sibling: " << iter->dup_count << std::endl;
   h.remove("key", hash);
   h.remove("key", hash);
   iter = h.search("key");
-  std::cout << "sibling: " << iter->dup_count << std::endl;
+  if(iter.is_vaild())
+    std::cout << "sibling: " << iter->dup_count << std::endl;
   h.insert("key", "value5");
   h.insert("key", "value6");
   travel(iter);
   iter = h.search("key");
-  std::cout << "sibling: " << iter->dup_count << std::endl;
+  if(iter.is_vaild())
+    std::cout << "sibling: " << iter->dup_count << std::endl;
   h.remove_all("key", hash); // remove sibling and node itself
 }
