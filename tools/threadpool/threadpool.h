@@ -26,6 +26,7 @@ namespace nm
   {
     public:
       threadpool(std::size_t threads = std::thread::hardware_concurrency());
+      threadpool(threadpool&&) = delete;
       threadpool(const threadpool&) = delete;
       threadpool& operator=(const threadpool&) = delete;
       ~threadpool() noexcept;
@@ -36,6 +37,7 @@ namespace nm
       void set_queue_size_limit(size_t);
       void stop();
     private:
+      // we don't use `atomic` variable here.
       bool is_exit;
       bool is_stop;
       size_t TASK_LIMIT;
@@ -49,21 +51,32 @@ namespace nm
   {
     for(;threads > 0; --threads)
     {
-      workers.emplace_back([&] {
+      workers.emplace_back([&]
+        {
           std::function<void()> task;
           for(;;)
           {
             {
-            std::unique_lock<std::mutex> l(queue_lock);
+              std::unique_lock<std::mutex> l(queue_lock);
               queue_cond.wait(l, [this]
-                  { return is_stop || is_exit || !tasks.empty(); });
-              if(is_stop) // caller request to stop all task.
+                {
+                  return is_stop || is_exit || !tasks.empty();
+                }
+              );
+              // caller request to stop all task.
+              if(is_stop)
                 return;
               // normal exit, when pool is going to destroyed.
-              if(is_exit && tasks.empty())
-                break;
-              task = move(tasks.front());
-              tasks.pop();
+              if(tasks.empty())
+              {
+                if(is_exit)
+                  break;
+              }
+              else
+              {
+                task = move(tasks.front());
+                tasks.pop();
+              }
             }
             try
             {
@@ -120,11 +133,16 @@ namespace nm
     queue_cond.notify_one();
     return res;
   }
-  size_t threadpool::queue_size_limit()
+  std::size_t threadpool::queue_size_limit()
   {
-    return TASK_LIMIT;
+    std::size_t res;
+    {
+      std::unique_lock<std::mutex> l(queue_lock);
+      res = TASK_LIMIT;
+    }
+    return res;
   }
-  void threadpool::set_queue_size_limit(size_t size)
+  void threadpool::set_queue_size_limit(std::size_t size)
   {
     std::unique_lock<std::mutex> l(queue_lock);
     auto old_limit = TASK_LIMIT;
