@@ -17,26 +17,26 @@ int main()
   h.insert("key", "value4");
   auto iter = h.search("key");
   auto travel = [](nm::hash::HashTable::iterator& iter) {
-    while(iter.is_vaild())
+    while(iter.is_valid())
     {
       std::cout << iter->value << std::endl;
       ++iter;
     }
   };
-  travel(iter); // iterator no longer vaild
+  travel(iter); // iterator no longer valid
   iter = h.search("key");
-  if(iter.is_vaild())
+  if(iter.is_valid())
     std::cout << "sibling: " << iter->dup_count << std::endl;
   h.remove("key", hash);
   h.remove("key", hash);
   iter = h.search("key");
-  if(iter.is_vaild())
+  if(iter.is_valid())
     std::cout << "sibling: " << iter->dup_count << std::endl;
   h.insert("key", "value5");
   h.insert("key", "value6");
   travel(iter);
   iter = h.search("key");
-  if(iter.is_vaild())
+  if(iter.is_valid())
     std::cout << "sibling: " << iter->dup_count << std::endl;
   h.remove_all("key", hash); // remove sibling and node itself
 }

@@ -36,6 +36,7 @@ namespace nm
       size_t queue_size_limit();
       void set_queue_size_limit(size_t);
       void stop();
+      bool valid();
     private:
       // we don't use `atomic` variable here.
       bool is_exit;
@@ -84,7 +85,7 @@ namespace nm
             }
             catch(std::exception& e)
             {
-              // abort program when encounter an exception
+              // abort program when encounter an exception.
               assert(false);
             }
           }
@@ -112,7 +113,7 @@ namespace nm
       }
       catch(std::system_error&)
       {
-        // do nothing
+        // do nothing.
       }
     }
   }
@@ -131,6 +132,9 @@ namespace nm
       throw std::runtime_error("add_task on stopped threadpool.");
     tasks.emplace([task]{ (*task)(); });
     queue_cond.notify_one();
+    // NRVO; gcc with -fno-elide-constructros will call move constructor
+    // in 'Primary template' (gcc6.1: in header file future at line 749)
+    // Thus, we don't use 'std::move' here.
     return res;
   }
   std::size_t threadpool::queue_size_limit()
@@ -148,7 +152,7 @@ namespace nm
     auto old_limit = TASK_LIMIT;
     TASK_LIMIT = (size > 1 ? size : 1);
     // if new limit less then old one,then wake up all workers to
-    // process as many tasks as they can
+    // process as many tasks as they can.
     if(TASK_LIMIT < old_limit)
       queue_cond.notify_all();
   }
@@ -156,7 +160,18 @@ namespace nm
   {
     std::unique_lock<std::mutex> l(queue_lock);
     is_stop = true;
+    while(!tasks.empty())
+      tasks.pop();
     queue_cond.notify_all();
+  }
+  bool threadpool::valid()
+  {
+    bool res;
+    {
+      std::unique_lock<std::mutex> l(queue_lock);
+      res = !tasks.empty();
+    }
+    return res;
   }
 }
 

@@ -115,7 +115,7 @@ namespace nm
             {
               return root;
             }
-            bool is_vaild()
+            bool is_valid()
             {
               return root != nullptr;
             }

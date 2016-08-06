@@ -18,6 +18,7 @@ int main()
   {
     this_thread::sleep_for(chrono::seconds(2));
     printf("%d\n", x * x);
+    return (x*x);
   };
   nm::threadpool pool;
   pool.add_task(f, 1);
@@ -26,7 +27,7 @@ int main()
   pool.add_task(f, 4);
   pool.add_task(f, 5);
   pool.add_task(f, 6);
-  pool.add_task(f, 7);
+  auto fut = pool.add_task(f, 7);
   cout << "task queue size limit: " << pool.queue_size_limit() << endl;
   pool.set_queue_size_limit(2);
   cout << "task queue size limit: " << pool.queue_size_limit() << endl;
@@ -42,4 +43,6 @@ int main()
   }
   this_thread::sleep_for(chrono::seconds(1));
   pool.stop();
+  if(pool.valid())
+    cout << "get: " << fut.get() << endl;
 }
