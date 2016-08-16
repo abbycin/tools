@@ -71,7 +71,7 @@ namespace nm
   template<int N>
   void FileCtl::append(const char (&line)[N])
   {
-    this->append(line, N);
+    this->append(line, N - 1);
   }
   void FileCtl::append(const char* line, const int len)
   {

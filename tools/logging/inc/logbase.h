@@ -27,14 +27,6 @@ namespace nm
     ERROR = 3,
     FATAL = 4
   };
-  static const char* LOGMSG[] = 
-  {
-    " [INFO]    ",
-    " [DEBUG]   ",
-    " [WARNING] ",
-    " [ERROR]   ",
-    " [FATAL]   "
-  };
   int gettid();
 }
 

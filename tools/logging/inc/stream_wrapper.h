@@ -8,6 +8,9 @@
 #ifndef LOG_STREAM_H_
 #define LOG_STREAM_H_
 
+#include "file.h"
+#include "util.h"
+#include "logbase.h"
 #include <cstring>
 #include <limits>
 #include <string>
@@ -18,9 +21,11 @@ namespace nm
   class Buffer
   {
     public:
-      Buffer(): size_(N), index_(0)
+      Buffer()
       {
-        memset(buf_, 0, N);
+        memset(buf_, 0, sizeof(char) * N);
+        cur_ = buf_;
+        end_ = buf_ + N;
       }
       Buffer(const Buffer&) = delete;
       Buffer(Buffer&&) = delete;
@@ -31,21 +36,26 @@ namespace nm
       {
         if(rest() > len)
         {
-          memcpy(buf_ + index_, line, len);
-          index_ += len;
+          memcpy(cur_, line, len);
+          cur_ += len;
         }
       }
-      int rest() const { return size_ - index_; }
-      size_t index() const { return index_; }
-      bool avail() const { return !(size_ == index_); }
+      int rest() const { return end_ - cur_; }
+      size_t size() const { return cur_ - buf_; }
+      bool avail() const { return !(end_ == cur_); }
       const char* data() { return buf_; }
       void reset()
       {
-        index_ = 0;
+        cur_ = buf_;
+      }
+      void clear()
+      {
+        memset(buf_, 0, sizeof(char) * N);
+        cur_ = buf_;
       }
       std::string to_string() const
       {
-        return std::string(buf_, index_);
+        return std::string(buf_, cur_ - buf_);
       }
       const char* data() const
       {
@@ -53,70 +63,83 @@ namespace nm
       }
     private:
       char buf_[N];
-      size_t size_;
-      size_t index_;
+      char* cur_;
+      char* end_;
   };
-
-  struct NullType {};
-  template<typename T, typename U>
-  struct TypeList
+  class BufferStream : uniq
   {
-    typedef T Head;
-    typedef U Tail;
-  };
-#define TL1(T1) TypeList<T1, NullType>
-#define TL2(T1, T2) TypeList<T1, TL1(T2)>
-  template<typename> struct Max;
-  template<> struct Max<NullType>
-  {
-    enum { value = 0 };
-  };
-  template<typename Head, typename Tail>
-  struct Max<TypeList<Head, Tail>>
-  {
-    private:
-      enum
-      {
-        cur = std::numeric_limits<Head>::digits10,
-        nxt = Max<Tail>::value
-      };
     public:
-      enum { value = cur > nxt ? cur : nxt };
-  };
-
-  class StreamWrapper
-  {
+      BufferStream(): buffer_(){}
+      ~BufferStream() {}
+      template<int N>
+      BufferStream& operator<< (const char (&arr)[N])
+      {
+        buffer_.append(arr, N - 1);
+        return *this;
+      }
+      template<typename T>
+      BufferStream& operator<< (const T x)
+      {
+        misc::append(&buffer_, x);
+        return *this;
+      }
+      BufferStream& operator<< (const std::string&);
+      const char* buffer() const
+      {
+        return buffer_.data();
+      }
+      void append(const char* s, int len)
+      {
+        buffer_.append(s, len);
+      }
+      size_t size() const
+      {
+        return buffer_.size();
+      }
+      void reset()
+      {
+        buffer_.reset();
+      }
+      void clear()
+      {
+        buffer_.clear();
+      }
     private:
       enum
       {
-        // openSUSE Tumbleweed with kernel-4.7 _x86_64 got (18 + 1) = 19
-        BUF_SIZE = Max<TL2(long, long double)>::value + 1,
         BUFFER_SIZE = 1024 * 4 // 4KB
       };
+      Buffer<BUFFER_SIZE> buffer_;
+  };
+
+  class FileStream : uniq
+  {
     public:
-      using mBuffer = Buffer<BUFFER_SIZE>;
-      StreamWrapper();
-      StreamWrapper(const StreamWrapper&) = delete;
-      StreamWrapper(StreamWrapper&&) = delete;
-      StreamWrapper& operator= (const StreamWrapper&) = delete;
-      StreamWrapper& operator= (StreamWrapper&&) = delete;
-      ~StreamWrapper();
-      StreamWrapper& operator<< (const std::string&);
-      StreamWrapper& operator<< (const mBuffer&);
-      StreamWrapper& operator<< (const char*);
-      StreamWrapper& operator<< (const int);
-      StreamWrapper& operator<< (const unsigned int);
-      StreamWrapper& operator<< (const long);
-      StreamWrapper& operator<< (const unsigned long);
-      StreamWrapper& operator<< (const float);
-      StreamWrapper& operator<< (const double);
-      const mBuffer& buffer() const { return buffer_; }
-      void reset() { buffer_.reset(); }
-    private:
-      mBuffer buffer_;
-      char buf_[BUF_SIZE];  // max numeric size, static_assert()
+      FileStream(): file_(nullptr){}
+      FileStream(FileCtl* file) : file_(file){}
+      void set(FileCtl* f) { file_ = f; }
+      bool valid() { return file_ != nullptr; }
+      void flush() { file_->flush(); }
+      void append(const char* s, int len)
+      {
+        file_->append(s, len);
+      }
+      ~FileStream(){ delete file_; }
+      template<int N>
+      FileStream& operator<< (const char (&arr)[N])
+      {
+        file_->append(arr, N - 1);
+        return *this;
+      }
       template<typename T>
-      StreamWrapper& append_(const char*, const T);
+      FileStream& operator<< (const T x)
+      {
+        misc::append(file_, x);
+        return *this;
+      }
+      FileStream& operator<< (const std::string&);
+    private:
+      FileCtl* file_;
   };
 }
 

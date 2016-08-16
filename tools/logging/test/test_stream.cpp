@@ -10,7 +10,7 @@
 
 int main()
 {
-  nm::StreamWrapper ss;
+  nm::BufferStream ss;
   std::string str{"-str-"};
   int n = 309;
   long l = 309;
@@ -21,7 +21,8 @@ int main()
   for(int i = 0; i < 1; ++i)
   {
     ss << str << "_" << n << "_" << l << "_" << f
-      << "_" << d << "_" << un << "_" << ul << "#\n";
+      << "_" << d << "_" << un << "_" << ul << " "
+      << &ul << " " << true <<"#" << '\n';
   }
-  std::cout << ss.buffer().to_string() << std::endl;
+  std::cout << ss.buffer();
 }

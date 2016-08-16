@@ -16,8 +16,8 @@ int main(int argc, char* argv[])
     return 1;
   }
   nm::Logging::instance(argv[1], 1024 * 1024 * 10);
-  int j = 3;
-  for(int i = 0; i < 25000; ++i)
+  int j = 2;
+  for(int i = 0; i < 250000; ++i)
   {
       nm::LOG_INFO << argv[j] << "\n";
       nm::LOG_WARN << argv[j] << "\n";

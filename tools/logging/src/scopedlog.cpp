@@ -11,6 +11,15 @@
 #include <cstdio>
 #include <cerrno>
 
+static const char* MSG[] = 
+{
+  " [INFO]    ",
+  " [DEBUG]   ",
+  " [WARNING] ",
+  " [ERROR]   ",
+  " [FATAL]   "
+};
+
 namespace nm
 {
   static void default_appender(const char* line, int len)
@@ -23,33 +32,47 @@ namespace nm
   }
   static ScopedLog::out global_appender = nullptr;
   static ScopedLog::flush_out global_flush = nullptr;
+  thread_local static char __buf[25] = {0};
 
-  // format: yyyymmdd_HHMMSS.nnnnnnZ.tid [level] file line func: message
+  // format: yyyymmdd_HHMMSS.nnnnnnu.tid [level] file line func: message
   ScopedLog::wrapper::wrapper(const char* file, int line, LogLevel level)
-    : stream_()
+    : tm_len_(0), tm_time_(TimeFmt::now()), stream_()
   {
-    stream_ << TimeFmt::now().format() << gettid()
-      << msg[level] << file << " " << line <<  " => ";
+    tm_len_ = tm_time_.format(__buf, 25);
+    stream_.append(__buf, tm_len_);
+    stream_ << gettid();
+    stream_.append(MSG[level], 11);
+    stream_ << file;
+    stream_.append(" ", 1);
+    stream_ << line;
+    stream_.append(" => ", 4);
   }
   ScopedLog::wrapper::wrapper(const char* file, int line, LogLevel level,
       const char* func)
     : stream_()
   {
-    stream_ << TimeFmt::now().format() << gettid()
-      << msg[level]  << file << " " << line 
-      <<  " `" << func << "` => ";
+    tm_len_ = tm_time_.format(__buf, 25);
+    stream_.append(__buf, tm_len_);
+    stream_ << gettid();
+    stream_.append(MSG[level], 11);
+    stream_ << file;
+    stream_.append(" ", 1);
+    stream_ << line;
+    stream_.append(" `", 2);
+    stream_<< func;
+    stream_.append("` => ", 5);
   }
-  StreamWrapper& ScopedLog::wrapper::stream()
+  BufferStream& ScopedLog::wrapper::stream()
   {
     return stream_;
   }
   const char* ScopedLog::wrapper::data() const
   {
-    return stream_.buffer().data();
+    return stream_.buffer();
   }
-  int ScopedLog::wrapper::size() const
+  size_t ScopedLog::wrapper::size() const
   {
-    return stream_.buffer().index();
+    return stream_.size();
   }
   ScopedLog::wrapper::~wrapper()
   {
@@ -79,7 +102,7 @@ namespace nm
     if(level_ == LogLevel::FATAL)
       abort();
   }
-  StreamWrapper& ScopedLog::stream()
+  BufferStream& ScopedLog::stream()
   {
     return logger_.stream();
   }

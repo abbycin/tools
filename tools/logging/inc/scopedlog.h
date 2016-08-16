@@ -20,7 +20,7 @@ namespace nm
       ScopedLog(const char* file, int line, LogLevel);
       ScopedLog(const char* file, int line, LogLevel level, const char* func);
       ~ScopedLog();
-      StreamWrapper& stream();
+      BufferStream& stream();
       typedef void (*out)(const char*, int);
       typedef void (*flush_out)();
       static void set_appender(out);
@@ -32,12 +32,13 @@ namespace nm
           wrapper(const char* file, int line, LogLevel level);
           wrapper(const char* file, int line, LogLevel level, const char* func);
           ~wrapper();
-          StreamWrapper& stream();
+          BufferStream& stream();
           const char* data() const;
-          int size() const;
+          size_t size() const;
         private:
-          const char** msg = LOGMSG;
-          StreamWrapper stream_;
+          int tm_len_;
+          TimeFmt tm_time_;
+          BufferStream stream_;
       };
       LogLevel level_;
       wrapper logger_;

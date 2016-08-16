@@ -15,8 +15,6 @@
 
 namespace nm
 {
-
-
   class Logging : uniq
   {
     private:
@@ -32,15 +30,13 @@ namespace nm
           template<int N>
           Logger& operator<< (const char (&arr)[N])
           {
-            file_.append(arr, N);
+            stream_.append(arr, N - 1);
             return *this;
           }
           template<typename T>
           Logger& operator<< (const T x)
           {
             stream_ << x;
-            file_.append(stream_.buffer().data(), stream_.buffer().index());
-            stream_.reset();
             return *this;
           }
           Logger& operator() (const char*, int, LogLevel);
@@ -48,11 +44,12 @@ namespace nm
           Logger& operator() (const char*, int, LogLevel, const char*);
           void flush()
           {
-            file_.flush();
+            stream_.flush();
           }
         private:
-          FileCtl file_;
-          StreamWrapper stream_;
+          int tm_len_;
+          TimeFmt tm_time_;
+          FileStream stream_;
       };
       static std::unique_ptr<Logger> logger_;
      Logging();

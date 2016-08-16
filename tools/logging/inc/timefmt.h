@@ -35,8 +35,11 @@ namespace nm
         microsecond_ = t.microsecond_;
         return *this;
       }
-      std::string to_string();
+      std::string to_string(); 
       std::string format(bool show_micro = true);
+      // buf has fixed-size 24
+      int format(char buf[], int size, bool show_micro = true);
+      TimeFmt& update();
       time_t sec() const
       {
         return second_;
@@ -54,6 +57,7 @@ namespace nm
       TimeFmt& operator= (const TimeFmt&) = delete;
       time_t second_;
       long microsecond_;
+      struct tm tm_time_;
   };
 }
 

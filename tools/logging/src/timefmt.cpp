@@ -9,6 +9,7 @@
 
 namespace nm
 {
+  thread_local static char __buf[25] = {0};
   TimeFmt TimeFmt::now()
   {
     struct timeval tv;
@@ -18,28 +19,38 @@ namespace nm
   }
   std::string TimeFmt::to_string()
   {
-    char buf[25] = {0};
-    int len = sprintf(buf, "%ld.%06ld", second_,microsecond_);
-    return std::string(buf, len);
+    int len = sprintf(__buf, "%ld.%06ld", second_,microsecond_);
+    return std::string(__buf, len);
   }
   std::string TimeFmt::format(bool show_micro)
   {
-    char buf[25] = {0};
-    struct tm tm_time;
-    localtime_r(&second_, &tm_time);  // we don't use gmtime.
+    int len = format(__buf, 32);
+    return std::string(__buf, len);
+  }
+  int TimeFmt::format(char buf[], int size, bool show_micro)
+  {
+    localtime_r(&second_, &tm_time_);  // we don't use gmtime.
     int len = 0;
     if(show_micro)
     {
-      len = sprintf(buf, "%4d%02d%02d_%02d%02d%02d.%04ldu.",
-          tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday,
-          tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec, microsecond_);
+      len = snprintf(buf, size, "%4d%02d%02d_%02d%02d%02d.%06ldu.",
+          tm_time_.tm_year + 1900, tm_time_.tm_mon + 1, tm_time_.tm_mday,
+          tm_time_.tm_hour, tm_time_.tm_min, tm_time_.tm_sec, microsecond_);
     }
     else
     {
-      len = sprintf(buf, "%4d%02d%02d_%02d%02d%02d.",
-          tm_time.tm_year + 1900, tm_time.tm_mon + 1, tm_time.tm_mday,
-          tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec);
+      len = snprintf(buf, size, "%4d%02d%02d_%02d%02d%02d.",
+          tm_time_.tm_year + 1900, tm_time_.tm_mon + 1, tm_time_.tm_mday,
+          tm_time_.tm_hour, tm_time_.tm_min, tm_time_.tm_sec);
     }
-    return std::string(buf, len);
+    return len;
+  }
+  TimeFmt& TimeFmt::update()
+  {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    second_ = tv.tv_sec;
+    microsecond_ = tv.tv_usec;
+    return *this;
   }
 }
