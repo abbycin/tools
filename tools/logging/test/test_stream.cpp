@@ -6,11 +6,11 @@
 **********************************************************/
 
 #include <iostream>
-#include "stream_wrapper.h"
+#include "meta/stream_wrapper.h"
 
 int main()
 {
-  nm::BufferStream ss;
+  nm::meta::BufferStream ss;
   std::string str{"-str-"};
   int n = 309;
   long l = 309;

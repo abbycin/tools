@@ -6,41 +6,30 @@
 **********************************************************/
 
 #include "scopedlog.h"
-#include "timefmt.h"
 #include <stdlib.h>
-#include <cstdio>
-#include <cerrno>
-
-static const char* MSG[] = 
-{
-  " [INFO]    ",
-  " [DEBUG]   ",
-  " [WARNING] ",
-  " [ERROR]   ",
-  " [FATAL]   "
-};
 
 namespace nm
 {
-  static void default_appender(const char* line, int len)
+  extern const char* MSG[];
+  static void default_appender(const char* line, const size_t len)
   {
     ::fwrite_unlocked(line, 1, len, stdout);
   }
   static void default_flush()
   {
-    ::fflush(stdout);
+    ::fflush_unlocked(stdout);
   }
-  static ScopedLog::out global_appender = nullptr;
-  static ScopedLog::flush_out global_flush = nullptr;
+  static std::function<void(const char*, const size_t)> global_appender = nullptr;
+  static std::function<void()> global_flush = nullptr;
   thread_local static char __buf[25] = {0};
 
   // format: yyyymmdd_HHMMSS.nnnnnnu.tid [level] file line func: message
   ScopedLog::wrapper::wrapper(const char* file, int line, LogLevel level)
-    : tm_len_(0), tm_time_(TimeFmt::now()), stream_()
+    : tm_len_(0), tm_time_(), stream_()
   {
-    tm_len_ = tm_time_.format(__buf, 25);
+    tm_len_ = tm_time_.update().format(__buf, 25);
     stream_.append(__buf, tm_len_);
-    stream_ << gettid();
+    stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
     stream_ << file;
     stream_.append(" ", 1);
@@ -53,7 +42,7 @@ namespace nm
   {
     tm_len_ = tm_time_.format(__buf, 25);
     stream_.append(__buf, tm_len_);
-    stream_ << gettid();
+    stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
     stream_ << file;
     stream_.append(" ", 1);
@@ -62,7 +51,7 @@ namespace nm
     stream_<< func;
     stream_.append("` => ", 5);
   }
-  BufferStream& ScopedLog::wrapper::stream()
+  meta::BufferStream& ScopedLog::wrapper::stream()
   {
     return stream_;
   }
@@ -102,15 +91,15 @@ namespace nm
     if(level_ == LogLevel::FATAL)
       abort();
   }
-  BufferStream& ScopedLog::stream()
+  meta::BufferStream& ScopedLog::stream()
   {
     return logger_.stream();
   }
-  void ScopedLog::set_appender(out f)
+  void ScopedLog::set_appender(std::function<void(const char*, const size_t)> f)
   {
     global_appender = f;
   }
-  void ScopedLog::set_flush(flush_out f)
+  void ScopedLog::set_flush(std::function<void()> f)
   {
     global_flush = f;
   }

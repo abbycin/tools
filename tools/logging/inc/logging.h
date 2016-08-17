@@ -8,14 +8,15 @@
 #ifndef LOGGING_H_
 #define LOGGING_H_
 
-#include "logbase.h"
-#include "file.h"
-#include "stream_wrapper.h"
+#include "meta/logbase.h"
+#include "meta/file.h"
+#include "meta/stream_wrapper.h"
 #include <cassert>
 
 namespace nm
 {
-  class Logging : uniq
+  // Thread-safe by default
+  class Logging : meta::uniq
   {
     private:
       class Logger
@@ -40,23 +41,23 @@ namespace nm
             return *this;
           }
           Logger& operator() (const char*, int, LogLevel);
-          Logger& operator() (const char*, int, LogLevel, bool is_abort);
-          Logger& operator() (const char*, int, LogLevel, const char*);
+          Logger& operator() (const char*, int, LogLevel,
+              const char*, bool is_abort = false);
           void flush()
           {
             stream_.flush();
           }
         private:
           int tm_len_;
-          TimeFmt tm_time_;
-          FileStream stream_;
+          meta::TimeFmt tm_time_;
+          meta::FileStream stream_;
       };
       static std::unique_ptr<Logger> logger_;
      Logging();
       ~Logging();
     public:
-      static void instance(const std::string& path,
-          size_t size_limit,
+      static void create_instance(const std::string& path,
+          size_t size_limit = 0,
           time_t duration = 60 * 60 * 24,
           bool thread_safe = true,
           int flush_interval = 3,
@@ -75,7 +76,7 @@ namespace nm
 #define LOG_WARN Logging::instance()(__FILE__, __LINE__, nm::LogLevel::WARNING)
 #define LOG_DEBUG Logging::instance()(__FILE__, __LINE__, nm::LogLevel::DEBUG, __func__)
 #define LOG_ERR Logging::instance()(__FILE__, __LINE__, nm::LogLevel::ERROR)
-#define LOG_FATAL Logging::instance()(__FILE__, __LINE__, nm::LogLevel::FATAL, false)
+#define LOG_FATAL Logging::instance()(__FILE__, __LINE__, nm::LogLevel::FATAL, __func__, true)
 #define LOG_FLUSH Logging::instance().flush()
 }
 

@@ -10,15 +10,19 @@
 
 namespace nm
 {
-  struct uniq
+  namespace meta
   {
-    uniq(){}
-    ~uniq(){}
-    uniq(const uniq&) = delete;
-    uniq(uniq&&) = delete;
-    uniq& operator= (const uniq&) = delete;
-    uniq& operator= (uniq&&) = delete;
-  };
+    struct uniq
+    {
+      uniq(){}
+      virtual ~uniq(){}
+      uniq(const uniq&) = delete;
+      uniq(uniq&&) = delete;
+      uniq& operator= (const uniq&) = delete;
+      uniq& operator= (uniq&&) = delete;
+    };
+    int gettid();
+  }
   enum LogLevel
   {
     INFO = 0,
@@ -27,7 +31,6 @@ namespace nm
     ERROR = 3,
     FATAL = 4
   };
-  int gettid();
 }
 
 #endif

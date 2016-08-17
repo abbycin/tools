@@ -11,8 +11,19 @@
 
 namespace nm
 {
-  int gettid()
+  namespace meta
   {
-    return static_cast<int>(syscall(SYS_gettid));
+    int gettid()
+    {
+      return static_cast<int>(syscall(SYS_gettid));
+    }
   }
+  const char* MSG[] =
+    {
+      " [INFO]    ",
+      " [DEBUG]   ",
+      " [WARNING] ",
+      " [ERROR]   ",
+      " [FATAL]   "
+    };
 }

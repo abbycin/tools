@@ -14,7 +14,7 @@
 
 namespace nm
 {
-  namespace misc
+  namespace meta
   {
     struct NullType {};
     template<typename T, typename U>
@@ -44,8 +44,8 @@ namespace nm
       public:
         enum
         {
-          integer = cur_int > nxt_int? cur_int : nxt_int,
-          decimal = cur_dec > nxt_dec? cur_dec : nxt_dec,
+          integer = cur_int > nxt_int ? cur_int : nxt_int,
+          decimal = cur_dec > nxt_dec ? cur_dec : nxt_dec,
           total = integer + decimal
         };
     };

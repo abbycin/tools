@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
     fprintf(stderr, "%s path message ...\n", argv[0]);
     return 1;
   }
-  nm::Logging::instance(argv[1], 1024 * 1024 * 10);
+  nm::Logging::create_instance(argv[1], 1024 * 1024 * 10);
   int j = 2;
   for(int i = 0; i < 250000; ++i)
   {

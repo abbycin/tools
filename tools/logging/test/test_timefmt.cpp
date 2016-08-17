@@ -6,12 +6,12 @@
 **********************************************************/
 
 #include <iostream>
-#include "timefmt.h"
+#include "meta/timefmt.h"
 
 int main()
 {
   char buf[25] = {0};
-  std::cout << nm::TimeFmt::now().to_string() << std::endl;
-  std::cout << nm::TimeFmt::now().format(buf, 25) << std::endl;
+  std::cout << nm::meta::TimeFmt::now().to_string() << std::endl;
+  std::cout << nm::meta::TimeFmt::now().format(buf, 25) << std::endl;
   std::cout << buf << std::endl;
 }

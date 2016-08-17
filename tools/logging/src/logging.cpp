@@ -8,16 +8,9 @@
 #include "logging.h"
 #include <stdlib.h>
 
-static const char* MSG[] = 
-{
-  " [INFO]    ",
-  " [DEBUG]   ",
-  " [WARNING] ",
-  " [ERROR]   ",
-  " [FATAL]   "
-};
 namespace nm
 {
+  extern const char* MSG[];
   thread_local static char __buf[25] = {0};
   std::unique_ptr<Logging::Logger> Logging::logger_ = nullptr;
 
@@ -28,7 +21,7 @@ namespace nm
       int flush_interval,
       int check_interval)
     : tm_len_(0), tm_time_(),
-    stream_(new FileCtl(path.c_str(), size_limit, duration,
+    stream_(new meta::FileCtl(path.c_str(), size_limit, duration,
         thread_safe, flush_interval, check_interval))
   {
   }
@@ -37,7 +30,7 @@ namespace nm
   {
     tm_len_ = tm_time_.update().format(__buf, 25);
     stream_.append(__buf, tm_len_);
-    stream_ << gettid();
+    stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
     stream_ << file;
     stream_.append(" ", 1);
@@ -46,19 +39,11 @@ namespace nm
     return *this;
   }
   Logging::Logger& Logging::Logger::operator() (const char* file, int line,
-      LogLevel level, bool is_abort)
-  {
-    (*this)(file, line, level);
-    if(is_abort)
-      abort();
-    return *this;
-  }
-  Logging::Logger& Logging::Logger::operator() (const char* file, int line,
-      LogLevel level, const char* func)
+      LogLevel level, const char* func, bool is_abort)
   {
     tm_len_ = tm_time_.update().format(__buf, 25);
     stream_.append(__buf, tm_len_);
-    stream_ << gettid();
+    stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
     stream_ << file;
     stream_.append(" ", 1);
@@ -66,6 +51,11 @@ namespace nm
     stream_.append(" `", 2);
     stream_ << func;
     stream_.append("` => ", 5);
+    if(is_abort)
+    {
+      stream_.flush();
+      abort();
+    }
     return *this;
   }
 }

@@ -6,7 +6,6 @@
 **********************************************************/
 
 #include <iostream>
-#include <exception>
 #include "scopedlog.h"
 
 FILE* fp = nullptr;
@@ -42,16 +41,16 @@ int main(int argc, char* argv[])
   double d = 19.8919920309f;
   for(int i = 0; i < 250000; ++i)
   {
-    nm::LOGINFO << s << " " << n << " "
+    nm::SCOPED_INFO << s << " " << n << " "
       << l << " " << un << " " << ul
       << " " << f << " " << d << "\n";
-    nm::LOGDEBUG << s << " " << n << " "
+    nm::SCOPED_DEBUG << s << " " << n << " "
       << l << " " << un << " " << ul
       << " " << f << " " << d << "\n";
-    nm::LOGWARN << s << " " << n << " "
+    nm::SCOPED_WARN << s << " " << n << " "
       << l << " " << un << " " << ul
       << " " << f << " " << d << "\n";
-    nm::LOGERR << s << " " << n << " "
+    nm::SCOPED_ERR << s << " " << n << " "
       << l << " " << un << " " << ul
       << " " << f << " " << d << "\n";
   }
