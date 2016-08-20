@@ -40,6 +40,11 @@ namespace nm
             stream_ << x;
             return *this;
           }
+          Logger& operator<< (const std::string& s)
+          {
+            stream_.append(s.c_str(), s.size());
+            return *this;
+          }
           Logger& operator() (const char*, int, LogLevel);
           Logger& operator() (const char*, int, LogLevel,
               const char*, bool is_abort = false);
