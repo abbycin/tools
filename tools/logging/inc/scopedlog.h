@@ -18,8 +18,8 @@ namespace nm
   class ScopedLog : meta::uniq
   {
     public:
-      ScopedLog(const char* file, int line, LogLevel);
-      ScopedLog(const char* file, int line, LogLevel level, const char* func);
+      ScopedLog(const meta::Path&, int line, LogLevel);
+      ScopedLog(const meta::Path&, int line, LogLevel level, const char* func);
       ~ScopedLog();
       meta::BufferStream& stream();
       static void set_appender(std::function<void(const char*, const size_t)>);
@@ -28,8 +28,8 @@ namespace nm
       class wrapper
       {
         public:
-          wrapper(const char* file, int line, LogLevel level);
-          wrapper(const char* file, int line, LogLevel level, const char* func);
+          wrapper(const meta::Path&, int line, LogLevel level);
+          wrapper(const meta::Path&, int line, LogLevel level, const char* func);
           ~wrapper();
           meta::BufferStream& stream();
           const char* data() const;

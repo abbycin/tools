@@ -25,28 +25,28 @@ namespace nm
         thread_safe, flush_interval, check_interval))
   {
   }
-  Logging::Logger& Logging::Logger::operator() (const char* file, int line,
+  Logging::Logger& Logging::Logger::operator() (const meta::Path& file, int line,
       LogLevel level)
   {
     tm_len_ = tm_time_.update().format(__buf, 25);
     stream_.append(__buf, tm_len_);
     stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
-    stream_ << file;
-    stream_.append(" ", 1);
+    stream_.append(file.base_path(), file.base_len());
+    stream_.append(":", 1);
     stream_ << line;
     stream_.append(" => ", 4);
     return *this;
   }
-  Logging::Logger& Logging::Logger::operator() (const char* file, int line,
+  Logging::Logger& Logging::Logger::operator() (const meta::Path& file, int line,
       LogLevel level, const char* func, bool is_abort)
   {
     tm_len_ = tm_time_.update().format(__buf, 25);
     stream_.append(__buf, tm_len_);
     stream_ << meta::gettid();
     stream_.append(MSG[level], 11);
-    stream_ << file;
-    stream_.append(" ", 1);
+    stream_.append(file.base_path(), file.base_len());
+    stream_.append(":", 1);
     stream_ << line;
     stream_.append(" `", 2);
     stream_ << func;
