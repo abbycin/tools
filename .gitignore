@@ -1,3 +1,6 @@
+#CLion
+.idea
+#
 bin
 *.swp
 # ---> C
