@@ -56,17 +56,22 @@ class Session : public std::enable_shared_from_this<Session>
 
     void run()
     {
-      async_read_until(socket_, buf_, '\n',
-                       std::bind(&Session::processing,
-                                 shared_from_this(),
-                                 std::placeholders::_1,
-                                 std::placeholders::_2));
+      do_read();
     }
 
   private:
     tcp::socket socket_;
     Callback cb_;
     boost::asio::streambuf buf_;
+
+    void do_read()
+    {
+      async_read_until(socket_, buf_, '\n',
+                       std::bind(&Session::processing,
+                                 shared_from_this(),
+                                 std::placeholders::_1,
+                                 std::placeholders::_2));
+    }
 
     void processing(const error_code& e, size_t)
     {
@@ -82,9 +87,13 @@ class Session : public std::enable_shared_from_this<Session>
                   {
                     if(ec)
                       std::cerr << ec.message() << std::endl;
+                    else
+                      do_read();
+                    /*
                     if(cb_)
                       cb_();
                     socket_.shutdown(boost::asio::socket_base::shutdown_both);
+                     */
                   });
     }
 };
