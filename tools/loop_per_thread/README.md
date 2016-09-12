@@ -14,9 +14,13 @@ the following is a simple test with [client.cpp](./client.cpp):
 
 **Environment**
 
-|CPU|RAM|Kernel| Complier| Target|
-|--|--|--|--|--|
-|Intel Core i5-6300HQ CPU @ 4x 2.30GHz| 4GB x 2| x86_64 Linux 4.7.2-2-default| GCC 6.2.1| release |
+**CPU**: [Intel Core i5-6300HQ CPU @ 4x 2.30GHz]() <br>
+**RAM**: [4GB x 2]() <br>
+**Kernel**: [x86_64 Linux 4.7.2-2-default]() <br>
+**Compiler**: [GCC 6.2.1]() <br>
+**Target**: [release]() <br>
+
+<small>gogs don't support markdown table?</small>
 
 **server**
 
@@ -87,7 +91,7 @@ maximum CPU usage never exceed 50%.
 There's only one eventloop, and all threads share the same loop, that's to say, accepting new connection and handling I/O event are happen in the same loop.
 One thing to mention, we don't know which thread is currently accepting new connection or handling I/O event, it's managed by the operating system.
 
-the following is a simple test with [client.cpp](./client.cpp):  
+the following is a simple test with [client.cpp](./client.cpp):
 
 **Same environment**
 
