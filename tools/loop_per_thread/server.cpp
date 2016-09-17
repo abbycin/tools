@@ -10,6 +10,7 @@
 #include <boost/asio.hpp>
 #include <mutex>
 #include <queue>
+#include <sys/wait.h>
 
 using boost::asio::io_service;
 using namespace boost::asio::ip;
@@ -299,15 +300,46 @@ class Server
     Manager manager_;
 };
 
-int main()
+void loop(int port, int num)
 {
   try
   {
-    Server se(tcp::endpoint(address::from_string("127.0.0.1"), 8888), 4);
+    Server se(tcp::endpoint(address_v4::any(), port), num);
     se.run();
   }
   catch(const boost::system::system_error& e)
   {
     std::cerr << e.what() << std::endl;
   }
+}
+
+int main(int argc, char* argv[])
+{
+  if(argc != 4)
+  {
+    fprintf(stderr, "%s child_num thread_num_per_child start_port\n", argv[0]);
+    fprintf(stderr, "Example:\n%s 10 2 8888\ncreate 10 child process, 2 thread"
+      " per child, listen port range from 8888 to (8888 + 10)\n", argv[0]);
+    return 1;
+  }
+  int child_num = std::stoi(argv[1]);
+  int thread_num = std::stoi(argv[2]);
+  int port = std::stoi(argv[3]);
+  pid_t pid = 0;
+  for(int i = 0; i < child_num; ++i, ++port)
+  {
+    switch((pid = fork()))
+    {
+      case -1:
+        perror("fork");
+        return 1;
+      case 0:
+        loop(port, thread_num);
+        return 0;
+      default:
+        break;
+    }
+  }
+  while(wait(NULL) != -1)
+    continue;
 }

@@ -14,11 +14,11 @@ the following is a simple test with [client.cpp](./client.cpp):
 
 **Environment**
 
-**CPU**: [Intel Core i5-6300HQ CPU @ 4x 2.30GHz]() <br>
-**RAM**: [4GB x 2]() <br>
-**Kernel**: [x86_64 Linux 4.7.2-2-default]() <br>
-**Compiler**: [GCC 6.2.1]() <br>
-**Target**: [release]() <br>
+**CPU**: Intel Core i5-6300HQ CPU @ 4x 2.30GHz<br>
+**RAM**: 4GB x 2]<br>
+**Kernel**: x86_64 Linux 4.7.2-2-default<br>
+**Compiler**: GCC 6.2.1<br>
+**Target**: release <br>
 
 <small>gogs don't support markdown table?</small>
 
