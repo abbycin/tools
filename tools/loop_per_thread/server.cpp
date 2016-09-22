@@ -68,10 +68,10 @@ class Session : public std::enable_shared_from_this<Session>
     void do_read()
     {
       async_read_until(socket_, buf_, '\n',
-                       std::bind(&Session::processing,
-                                 shared_from_this(),
-                                 std::placeholders::_1,
-                                 std::placeholders::_2));
+                       [this, self = shared_from_this()](const error_code& ec, size_t bytes)
+                       {
+                         processing(ec, bytes);
+                       });
     }
 
     void processing(const error_code& e, size_t)
@@ -81,20 +81,15 @@ class Session : public std::enable_shared_from_this<Session>
         std::cerr << e.message() << std::endl;
         return;
       }
-      //std::this_thread::sleep_for(std::chrono::seconds(3)); // simulate processing
-      auto self(shared_from_this());
       async_write(socket_, boost::asio::buffer("pong\n"),
-                  [this, self](const error_code& ec, size_t) // pervert syntax
+                  [this, self = shared_from_this()](const error_code& ec, size_t)
                   {
                     if(ec)
                       std::cerr << ec.message() << std::endl;
                     else
                       do_read();
-                    /*
                     if(cb_)
                       cb_();
-                    socket_.shutdown(boost::asio::socket_base::shutdown_both);
-                     */
                   });
     }
 };
@@ -117,9 +112,8 @@ class Worker
       writer_(io_),
       read_buf_(&rbuf_, sizeof rbuf_),
       write_buf_(&wbuf_, sizeof wbuf_),
-      thread_(std::bind(&Worker::thread_func, this))
+      thread_([this]{ thread_func(); })
     {
-
     }
 
     ~Worker()
@@ -163,7 +157,7 @@ class Worker
                               });
     }
 
-    void enqueue_writer(SessionPtr& session)
+    void enqueue_writer(SessionPtr session)
     {
       std::lock_guard<std::mutex> lg(mtx_);
       tasks_.push(session);
@@ -232,8 +226,8 @@ class Manager
     tcp::acceptor acceptor_;
     std::vector<WorkerPtr> workers_;
 
-    void accept_handle(SessionPtr& session,
-                       WorkerPtr& worker,
+    void accept_handle(SessionPtr session,
+                       WorkerPtr worker,
                        const error_code& ec)
     {
       if(!ec)
@@ -251,11 +245,10 @@ class Manager
       auto worker = workers_.at(cur_);
       auto session(Session::make_session(worker->get_io_service()));
       acceptor_.async_accept(session->socket(),
-                             std::bind(&Manager::accept_handle,
-                                       this,
-                                       session,
-                                       worker,
-                                       std::placeholders::_1));
+                             [this, session, worker](const error_code& ec)
+                             {
+                               accept_handle(session, worker, ec);
+                             });
     }
 };
 
