@@ -31,6 +31,11 @@ namespace nm
     {
       using type = TypeList<T, Nil>;
     };
+    template<typename... Args>
+    struct GenList<Nil, Args...> // ignore `Nil` in Args
+    {
+      using type = typename GenList<Args...>::type;
+    };
     template<typename T, typename... Args>
     struct GenList<T, Args...>
     {

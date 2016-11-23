@@ -17,34 +17,64 @@ namespace nm
   class FakeVariant
   {
     public:
-      template<typename T> void set(T value)
+      template<typename T> bool set(const T& value)
       {
-        data_.invisible<T>::value = new T(value);
+        return data_.invisible<T>::set(value);
       }
-      template<typename T, typename... Paras> void set(Paras&&... paras)
+      template<typename T, typename... Paras>
+      bool set(Paras&&... paras)
       {
-        data_.invisible<T>::value = new T(std::forward<Paras>(paras)...);
+        return data_.invisible<T>::set(std::forward<Paras>(paras)...);
       }
-      template<typename T> T& get()
+      template<typename T> const T& get() const
       {
-        return *data_.invisible<T>::value;
+        return data_.invisible<T>::get();
+      }
+      template<typename T> bool valid() const
+      {
+        return data_.invisible<T>::valid();
       }
     private:
       template<typename T>
-      struct invisible
+      class invisible
       {
-        T *value;
-        invisible() : value{nullptr}
-        {}
-        ~invisible()
-        {
-          if(value)
+        public:
+          invisible()
+            : value_{nullptr}
+          {}
+          ~invisible()
           {
-            delete value;
+            clear();
           }
-        }
+          template<typename... Paras>
+          bool set(Paras&&... paras)
+          {
+            bool res = valid();
+            clear();
+            value_ = new T(std::forward<Paras>(paras)...);
+            return !res;
+          }
+          const T& get() const
+          {
+            return *value_;
+          }
+          bool valid() const
+          {
+            return value_ != nullptr;
+          }
+        private:
+          T* value_;
+          void clear()
+          {
+            if(valid())
+            {
+              delete value_;
+              value_ = nullptr;
+            }
+          }
       };
-      meta::GenClasses<typename meta::Unique<typename meta::GenList<U, Args...>::type>::type, invisible> data_;
+      meta::GenClasses<typename meta::Unique<typename meta::GenList<U, Args...>
+        ::type>::type, invisible> data_;
   };
 }
 
