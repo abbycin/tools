@@ -22,6 +22,7 @@ int main()
     NonCopyMoveable(const NonCopyMoveable&) = delete;
     NonCopyMoveable(NonCopyMoveable&&) = delete;
     NonCopyMoveable& operator= (const NonCopyMoveable&) = delete;
+    NonCopyMoveable& operator= (NonCopyMoveable&&) = delete;
     int data_;
   };
   // ignore extra `int`
