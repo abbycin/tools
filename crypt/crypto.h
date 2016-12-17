@@ -142,6 +142,7 @@ class Crypto
       {
         if(*(start + 2) == '`')
         {
+          // FIXME: UTF-8 is variable length
           if(sscanf(start, "%2x", &n))
             *p = n;
           start += 2;

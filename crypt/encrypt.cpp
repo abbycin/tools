@@ -32,6 +32,12 @@ int main(int argc, char* argv[])
     std::cout << "Invalid magic number\n";
     return 1;
   }
+  std::ifstream in(argv[3]);
+  if(in.is_open())
+  {
+    std::cerr << "File exists, please choose another file.\n";
+    return 1;
+  }
   std::ofstream of(argv[3]);
   if(!of.is_open())
   {
