@@ -8,6 +8,7 @@ import socket
 import time
 import sys
 import os
+from random import randrange
 from multiprocessing import Process
 
 class Client:
@@ -24,17 +25,17 @@ class Client:
 
 def dispatch(ipaddr, port):
     clients = []
-    for i in range(0, 1000):
+    for i in range(0, 10000):
         clients.append(Client(ipaddr, port))
+        #time.sleep(0.001)
 
     pid = os.getpid()
 
     for i in range(0, 30):
         print 'child %d in round %d' %(pid, i + 1)
-        time.sleep(60)
         for client in clients:
-            #time.sleep(0.001)
             client.io()
+        time.sleep(randrange(10, 60))
 
 def loop(server_num, child_num, ipaddr, port):
     saved_port = port
