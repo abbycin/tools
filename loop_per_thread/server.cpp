@@ -173,6 +173,7 @@ class Session : public std::enable_shared_from_this<Session>
                            //std::cerr << ec.message() << std::endl;
                            return;
                          }
+                         buf_.consume(bytes);
                          processing();
                        });
     }
