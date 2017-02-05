@@ -9,6 +9,7 @@
 #include <thread>
 #include <boost/asio.hpp>
 #include <mutex>
+#include <queue>
 #include <sys/wait.h>
 
 using boost::asio::io_service;
@@ -18,104 +19,6 @@ using boost::asio::async_read_until;
 using boost::asio::async_write;
 
 using Callback = std::function<void()>;
-
-template<typename T>
-class Circle
-{
-  private:
-    struct Node
-    {
-      T data;
-      Node* next;
-      Node()
-        : data(), next(nullptr)
-      {}
-    };
-  public:
-    class iterator
-    {
-      public:
-        iterator(Node* n)
-          : data_(n)
-        {}
-
-        iterator& operator++ ()
-        {
-          data_ = data_->next;
-          return *this;
-        }
-
-        T* operator-> ()
-        {
-          return &data_->data;
-        }
-
-        iterator& operator= (const iterator& rhs)
-        {
-          if(this == &rhs)
-            return *this;
-          this->data_ = rhs.data_;
-          return *this;
-        }
-
-        bool operator== (const iterator& rhs)
-        {
-          return data_ == rhs.data_;
-        }
-
-        bool operator!= (const iterator& rhs)
-        {
-          return data_ != rhs.data_;
-        }
-
-      private:
-        Node* data_;
-    };
-    Circle(size_t capacity)
-      : size_(capacity), circle_(nullptr)
-    {
-      for(size_t i = 0; i < size_; ++i)
-      {
-        if(circle_ == nullptr)
-        {
-          circle_ = new Node;
-          circle_->next = circle_;
-          continue;
-        }
-        Node* tmp = new Node;
-        tmp->next = circle_->next;
-        circle_->next = tmp;
-      }
-    }
-
-    ~Circle()
-    {
-      auto head = circle_->next;
-      Node* tmp = nullptr;
-      while(head != circle_)
-      {
-        tmp = head;
-        head = head->next;
-        delete tmp;
-      }
-      delete head;
-    }
-
-    iterator iter()
-    {
-      return iterator(circle_);
-    }
-
-    size_t size() const
-    {
-      return size_;
-    }
-
-  private:
-    size_t size_;
-    Node* circle_;
-};
-
 
 /// \brief User defined business processing unit
 /**
@@ -134,8 +37,7 @@ class Session : public std::enable_shared_from_this<Session>
 
     Session(io_service& io)
       : socket_(io), cb_()
-    {
-    }
+    {}
 
     ~Session()
     {
@@ -169,27 +71,25 @@ class Session : public std::enable_shared_from_this<Session>
       async_read_until(socket_, buf_, '\n',
                        [this, self = shared_from_this()](const error_code& ec, size_t bytes)
                        {
-                         if(ec)
-                         {
-                           //std::cerr << ec.message() << std::endl;
-                           return;
-                         }
                          buf_.consume(bytes);
-                         processing();
+                         processing(ec, bytes);
                        });
     }
 
-    void processing()
+    void processing(const error_code& e, size_t)
     {
+      if(e)
+      {
+        std::cerr << e.message() << std::endl;
+        return;
+      }
       async_write(socket_, boost::asio::buffer("pong\n"),
                   [this, self = shared_from_this()](const error_code& ec, size_t)
                   {
                     if(ec)
-                    {
-                      //std::cerr << ec.message() << std::endl;
-                      return;
-                    }
-                    do_read();
+                      std::cerr << ec.message() << std::endl;
+                    else
+                      do_read();
                     if(cb_)
                       cb_();
                   });
@@ -208,102 +108,83 @@ class Worker
 {
   public:
     Worker()
-    : circle_(std::thread::hardware_concurrency()),
-      iter_(circle_.iter())
+    : rbuf_(0),
+      wbuf_(0),
+      reader_(io_),
+      writer_(io_),
+      read_buf_(&rbuf_, sizeof rbuf_),
+      write_buf_(&wbuf_, sizeof wbuf_),
+      thread_([this]{ thread_func(); })
     {
-      for(size_t i = 0; i < circle_.size(); ++i)
-      {
-        workers_.emplace_back([&, idx = i]() mutable {
-            auto task = circle_.iter();
-            while(idx--)
-              ++task;
-            task->run();
-          });
-      }
     }
 
     ~Worker()
     {
-      for(auto& t: workers_)
-      {
-        try
-        {
-          t.join();
-        }
-        catch(std::system_error&)
-        {
-          // swallow exception
-        }
-      }
+      if(thread_.joinable())
+        thread_.join();
     }
 
     io_service& get_io_service()
     {
-      return iter_->get_io_service();
+      return io_;
     }
 
     void enqueue(SessionPtr session)
     {
-      dispatch(session);
+      enqueue_writer(session);
     }
 
     void stop()
     {
-      for(size_t i = 0; i < circle_.size(); ++i)
-      {
-        iter_->stop();
-        ++iter_;
-      }
+      std::lock_guard<std::mutex> lg(mtx_);
+      io_.stop();
     }
 
   private:
-    class Task
+    char rbuf_, wbuf_;
+    io_service io_;
+    boost::asio::local::stream_protocol::socket reader_, writer_;
+    boost::asio::mutable_buffers_1 read_buf_;
+    boost::asio::const_buffers_1 write_buf_;
+    std::thread thread_;
+    std::queue<SessionPtr> tasks_;
+    std::mutex mtx_;
+
+    void enqueue_reader()
     {
-      public:
-        Task()
-          : work_(new io_service::work(io_))
-        {}
+      reader_.async_read_some(read_buf_,
+                              [this](const error_code& ec, size_t bytes)
+                              {
+                                read_handle(ec, bytes);
+                              });
+    }
 
-        ~Task()
-        {}
-
-        io_service& get_io_service()
-        {
-          return io_;
-        }
-
-        // fuck proactor!
-        void dispatch(SessionPtr session)
-        {
-          io_.dispatch([session] {
-            session->run();
-          });
-        }
-
-        void stop()
-        {
-          work_.reset();
-          io_.stop();
-        }
-
-        void run()
-        {
-          io_.run();
-        }
-
-      private:
-        io_service io_;
-        std::unique_ptr<io_service::work> work_;
-    };
-
-    Circle<Task> circle_;
-    Circle<Task>::iterator iter_;
-    std::vector<std::thread> workers_;
-
-    void dispatch(SessionPtr session)
+    void enqueue_writer(SessionPtr session)
     {
-      iter_->dispatch(session);
-      ++iter_;
+      std::lock_guard<std::mutex> lg(mtx_);
+      tasks_.push(session);
+      writer_.write_some(write_buf_);
+    }
+
+    void read_handle(const error_code& ec, size_t)
+    {
+      if(ec)
+        return;
+      std::lock_guard<std::mutex> lg(mtx_);
+      while(!tasks_.empty())
+      {
+        auto session = tasks_.front();
+        session->run();
+        tasks_.pop();
+      }
+      enqueue_reader();
+    }
+
+    void thread_func()
+    {
+      boost::asio::local::connect_pair(reader_, writer_);
+      enqueue_reader();
+      io_.run();
     }
 };
 
@@ -331,7 +212,8 @@ class Manager
     }
 
     ~Manager()
-    {}
+    {
+    }
 
     void stop()
     {
@@ -438,9 +320,10 @@ int main(int argc, char* argv[])
   int child_num = std::stoi(argv[1]);
   int thread_num = std::stoi(argv[2]);
   int port = std::stoi(argv[3]);
+  pid_t pid = 0;
   for(int i = 0; i < child_num; ++i, ++port)
   {
-    switch(fork())
+    switch((pid = fork()))
     {
       case -1:
         perror("fork");

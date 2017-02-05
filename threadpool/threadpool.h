@@ -149,10 +149,7 @@ namespace nm
     tasks_.emplace([task]{ (*task)(); });
     if(policy_ == std::launch::async)
       queue_cond_.notify_one();
-    // NRVO; gcc with -fno-elide-constructros will call move constructor
-    // in 'Primary template' (gcc6.1: in header file future at line 749)
-    // Thus, we don't use 'std::move' here.
-    return res;
+    return res; // NRVO
   }
   std::size_t threadpool::queue_size_limit()
   {
