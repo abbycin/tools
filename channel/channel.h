@@ -14,6 +14,33 @@
 #include <mutex>
 #include <tuple>
 
+#ifdef TBB_ALLOC // -ltbbmalloc
+#include <tbb/scalable_allocator.h>
+
+template<typename T>
+T* alloc()
+{
+  return static_cast<T*>(scalable_malloc(sizeof(T)));
+}
+
+void dealloc(void* x)
+{
+  scalable_free(x);
+}
+#else
+template<typename T>
+T* alloc()
+{
+  return new T;
+}
+
+template<typename T>
+void dealloc(T* x)
+{
+  delete x;
+}
+#endif
+
 class SpinLock
 {
   public:
@@ -23,16 +50,16 @@ class SpinLock
       public:
         Guard(T& lk)
           : lk_(lk)
-          {
-            lk_.lock();
-          }
+        {
+          lk_.lock();
+        }
 
-          ~Guard()
-          {
-            lk_.unlock();
-          }
-        private:
-          T& lk_;
+        ~Guard()
+        {
+          lk_.unlock();
+        }
+      private:
+        T& lk_;
       };
 
     SpinLock()
@@ -100,7 +127,7 @@ class Queue
       return size_ == 0;
     }
 
-    size_t size() const
+    size_t unsafe_size() const
     {
       return size_.load();
     }
@@ -115,14 +142,14 @@ class Queue
       size_ += 1;
     }
 
-    bool pop(T& data)
+    bool try_pop(T& data)
     {
-      auto tail = tail_.load(std::memory_order_release);
+      auto tail = tail_.load(std::memory_order_relaxed);
       auto next = tail->next.load(std::memory_order_acquire);
       if(next == nullptr)
         return false;
       data = next->data;
-      tail_.store(next, std::memory_order_acquire);
+      tail_.store(next, std::memory_order_release);
       delete tail;
       size_ -= 1;
       return true;
@@ -133,6 +160,13 @@ class Queue
     std::atomic<Node*> head_;
     std::atomic<Node*> tail_;
 };
+
+#ifdef TBB_QUEUE // -ltbb
+#include<tbb/concurrent_queue.h>
+template<typename T> using Queue_t = tbb::concurrent_queue<T>;
+#else
+template<typename T> using Queue_t = Queue<T>;
+#endif
 
 template<typename> class Sender;
 
@@ -159,7 +193,7 @@ class ReceiverImpl
     void send(const T& data)
     {
       queue_.push(data);
-      if(queue_.size() > 128)
+      if(queue_.unsafe_size() > 128)
         return;
       std::lock_guard<std::mutex> guard(mtx_);
       cond_.notify_one();
@@ -167,7 +201,7 @@ class ReceiverImpl
 
     bool try_recv(T& data)
     {
-      return queue_.pop(data);
+      return queue_.try_pop(data);
     }
 
     void recv(T& data)
@@ -176,7 +210,7 @@ class ReceiverImpl
       cond_.wait(lk, [this] {
             return !queue_.empty();
           });
-      while(!queue_.pop(data));
+      while(!queue_.try_pop(data));
     }
 
     template<typename Rep, typename Period>
@@ -186,11 +220,11 @@ class ReceiverImpl
       cond_.wait_for(lk, timeout, [this] {
             return !queue_.empty();
           });
-      return queue_.pop(data);
+      return queue_.try_pop(data);
     }
 
   private:
-    Queue<T> queue_;
+    Queue_t<T> queue_;
     std::mutex mtx_;
     std::condition_variable cond_;
     //std::condition_variable_any cond_;

@@ -1,6 +1,7 @@
 use std::thread;
 use std::env::args;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Instant;
 
 fn sender(tx: Sender<u64>, data: u64, mut limit: u64) {
     loop {
@@ -34,6 +35,7 @@ fn main() {
     let num: u64 = args().nth(1).unwrap().parse().unwrap();
     let (tx, rx) = channel();
     let (tx1, tx2, tx3) = (tx.clone(), tx.clone(), tx.clone());
+    let now = Instant::now();
     let rcv = thread::spawn(move || {
         receiver(rx);
     });
@@ -54,4 +56,6 @@ fn main() {
     tid3.join().unwrap();
     tx.send(309).unwrap();
     rcv.join().unwrap();
+    let dur = now.elapsed();
+    println!("{}.{}", dur.as_secs(), dur.subsec_nanos());
 }

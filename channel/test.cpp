@@ -7,6 +7,7 @@
 
 #include "channel.h"
 #include <iostream>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
@@ -38,6 +39,17 @@ void receiver(Receiver<size_t> rx)
   printf("receiver done.\n");
 }
 
+auto now()
+{
+  return std::chrono::high_resolution_clock::now();
+}
+
+template<typename T> // no GNU extension.
+auto duration(const T& dur)
+{
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(dur).count();
+}
+
 int main(int argc, char* argv[])
 {
   if(argc != 2)
@@ -51,6 +63,7 @@ int main(int argc, char* argv[])
   auto pair = channel<size_t>();
   auto& tx = std::get<0>(pair);
   auto& rx = std::get<1>(pair);
+  auto start = now();
 
   std::thread rcv(receiver, std::move(rx));
 
@@ -64,4 +77,7 @@ int main(int argc, char* argv[])
     x.join();
   tx.send(309);
   rcv.join();
+  auto end = now();
+  auto dur = static_cast<double>(duration(end - start));
+  printf("%.9f\n", dur / 1000000000);
 }
