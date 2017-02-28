@@ -103,7 +103,7 @@ class Queue
   public:
     Queue()
       : size_(0),
-      head_(new Node),
+      head_(alloc<Node>()),
       tail_(head_.load())
     {
       auto tmp = head_.load();
@@ -118,7 +118,7 @@ class Queue
       {
         cur = tmp;
         tmp = tmp->next.load();
-        delete cur;
+        dealloc(cur);
       }
     }
 
@@ -134,7 +134,7 @@ class Queue
 
     void push(const T& data)
     {
-      auto tmp = new Node;
+      auto tmp = alloc<Node>();
       tmp->data = data;
       tmp->next.store(nullptr, std::memory_order_relaxed);
       auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
@@ -150,7 +150,7 @@ class Queue
         return false;
       data = next->data;
       tail_.store(next, std::memory_order_release);
-      delete tail;
+      dealloc(tail);
       size_ -= 1;
       return true;
     }
