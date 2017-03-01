@@ -14,6 +14,14 @@
 #include <mutex>
 #include <tuple>
 
+class SpinLock;
+template<typename> class Guard;
+template<typename> class Queue;
+template<typename> class Sender;
+template<typename> class Receiver;
+template<typename T> std::tuple<Sender<T>, Receiver<T>> channel();
+
+// -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 #ifdef TBB_ALLOC // -ltbbmalloc
 #include <tbb/scalable_allocator.h>
 
@@ -26,6 +34,18 @@ T* alloc()
 void dealloc(void* x)
 {
   scalable_free(x);
+}
+#elif defined(JEMALLOC) // -ljemalloc
+#include <jemalloc/jemalloc.h>
+template<typename T>
+T* alloc()
+{
+  return static_cast<T*>(malloc(sizeof(T)));
+}
+
+void dealloc(void *x)
+{
+  free(x);
 }
 #else
 template<typename T>
@@ -41,27 +61,26 @@ void dealloc(T* x)
 }
 #endif
 
+#ifdef SPIN
+using Mutex = SpinLock;
+template<typename T> using LockGuard = Guard<T>;
+using CondVar = std::condition_variable_any;
+#else
+using Mutex = std::mutex;
+template<typename T> using LockGuard = std::unique_lock<T>;
+using CondVar = std::condition_variable;
+#endif
+
+#ifdef TBB_QUEUE
+#include <tbb/concurrent_queue.h>
+template<typename T> using Queue_t = tbb::concurrent_queue<T>;
+#else
+template<typename T> using Queue_t = Queue<T>;
+#endif
+
 class SpinLock
 {
   public:
-    template<typename T>
-    class Guard
-    {
-      public:
-        Guard(T& lk)
-          : lk_(lk)
-        {
-          lk_.lock();
-        }
-
-        ~Guard()
-        {
-          lk_.unlock();
-        }
-      private:
-        T& lk_;
-      };
-
     SpinLock()
       : flag_{ 0 }
     {}
@@ -78,7 +97,7 @@ class SpinLock
 
     void lock()
     {
-      while (!flag_.test_and_set(std::memory_order_acquire));
+      while(!flag_.test_and_set(std::memory_order_acquire));
     }
 
     void unlock()
@@ -88,6 +107,32 @@ class SpinLock
 
   private:
     std::atomic_flag flag_;
+};
+
+template<typename T>
+class Guard
+{
+  public:
+    Guard(T& lk)
+      : lk_(lk)
+    {}
+
+    ~Guard()
+    {
+      lk_.unlock();
+    }
+
+    void lock()
+    {
+      lk_.lock();
+    }
+
+    void unlock()
+    {
+      lk_.unlock();
+    }
+  private:
+    T& lk_;
 };
 
 template<typename T>
@@ -161,20 +206,8 @@ class Queue
     std::atomic<Node*> tail_;
 };
 
-#ifdef TBB_QUEUE // -ltbb
-#include<tbb/concurrent_queue.h>
-template<typename T> using Queue_t = tbb::concurrent_queue<T>;
-#else
-template<typename T> using Queue_t = Queue<T>;
-#endif
-
-template<typename> class Sender;
-
-template<typename> class Receiver;
-
-template<typename T>
-std::tuple<Sender<T>, Receiver<T>> channel();
-
+// tbbmalloc + spinlock > jemalloc + spinlock > glibc malloc + spinlock
+// spinlock > std::mutex
 template<typename T>
 class ReceiverImpl
 {
@@ -195,8 +228,9 @@ class ReceiverImpl
       queue_.push(data);
       if(queue_.unsafe_size() > 128)
         return;
-      std::lock_guard<std::mutex> guard(mtx_);
+      mtx_.lock();
       cond_.notify_one();
+      mtx_.unlock();
     }
 
     bool try_recv(T& data)
@@ -206,7 +240,7 @@ class ReceiverImpl
 
     void recv(T& data)
     {
-      std::unique_lock<std::mutex> lk(mtx_);
+      LockGuard<Mutex> lk(mtx_);
       cond_.wait(lk, [this] {
             return !queue_.empty();
           });
@@ -216,7 +250,7 @@ class ReceiverImpl
     template<typename Rep, typename Period>
     bool recv_timeout(T& data, const std::chrono::duration<Rep, Period>& timeout)
     {
-      std::unique_lock<std::mutex> lk(mtx_);
+      LockGuard<Mutex> lk(mtx_);
       cond_.wait_for(lk, timeout, [this] {
             return !queue_.empty();
           });
@@ -225,9 +259,8 @@ class ReceiverImpl
 
   private:
     Queue_t<T> queue_;
-    std::mutex mtx_;
-    std::condition_variable cond_;
-    //std::condition_variable_any cond_;
+    Mutex mtx_;
+    CondVar cond_;
 };
 
 template<typename T>

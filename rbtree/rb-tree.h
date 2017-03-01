@@ -168,7 +168,7 @@ namespace nm
 
       void clear()
       {
-        this->clear(root_);
+        this->clear(root_, root_->root);
       }
 
     private:
