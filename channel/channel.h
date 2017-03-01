@@ -223,6 +223,8 @@ class ReceiverImpl
 
     ReceiverImpl(ReceiverImpl&& rhs) = delete;
 
+    ~ReceiverImpl() = default;
+
     void send(const T& data)
     {
       queue_.push(data);
@@ -275,8 +277,7 @@ class Sender
       rhs.sender_.reset();
     }
 
-    ~Sender()
-    {}
+    ~Sender() = default;
 
     void send(const T& data)
     {
@@ -322,6 +323,8 @@ class Receiver
       }
     }
 
+    ~Receiver() = default;
+
     void recv(T& data)
     {
       recv_->recv(data);
@@ -335,7 +338,7 @@ class Receiver
     template<typename Rep, typename Period>
     bool recv_timeout(T& data, const std::chrono::duration<Rep, Period>& timeout)
     {
-      return recv_.recv_timeout(data, timeout);
+      return recv_->recv_timeout(data, timeout);
     }
 
   private:
