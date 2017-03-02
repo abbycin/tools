@@ -189,13 +189,12 @@ class Queue
 
     bool try_pop(T& data)
     {
-      auto tail = tail_.load(std::memory_order_relaxed);
-      auto next = tail->next.load(std::memory_order_acquire);
+      auto next = tail_->next.load(std::memory_order_acquire);
       if(next == nullptr)
         return false;
       data = next->data;
-      tail_.store(next, std::memory_order_release);
-      dealloc(tail);
+      dealloc(tail_);
+      tail_ = next;
       size_ -= 1;
       return true;
     }
@@ -203,7 +202,7 @@ class Queue
   private:
     std::atomic<size_t> size_;
     std::atomic<Node*> head_;
-    std::atomic<Node*> tail_;
+    Node* tail_;
 };
 
 // tbbmalloc + spinlock > jemalloc + spinlock > glibc malloc + spinlock
@@ -228,11 +227,10 @@ class ReceiverImpl
     void send(const T& data)
     {
       queue_.push(data);
-      if(queue_.unsafe_size() > 128)
-        return;
-      mtx_.lock();
-      cond_.notify_one();
-      mtx_.unlock();
+      if(!state_)
+      {
+        cond_.notify_one();
+      }
     }
 
     bool try_recv(T& data)
@@ -242,11 +240,22 @@ class ReceiverImpl
 
     void recv(T& data)
     {
-      LockGuard<Mutex> lk(mtx_);
-      cond_.wait(lk, [this] {
-            return !queue_.empty();
-          });
-      while(!queue_.try_pop(data));
+      for(;;)
+      {
+        if(!state_)
+        {
+          LockGuard<Mutex> lk(mtx_);
+          cond_.wait(lk, [this] {
+              return !queue_.empty();
+            });
+        }
+        if(queue_.try_pop(data))
+        {
+          state_ = true;
+          break;
+        }
+        state_ = false;
+      }
     }
 
     template<typename Rep, typename Period>
@@ -263,6 +272,7 @@ class ReceiverImpl
     Queue_t<T> queue_;
     Mutex mtx_;
     CondVar cond_;
+    bool state_{false};
 };
 
 template<typename T>
