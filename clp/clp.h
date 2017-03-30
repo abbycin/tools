@@ -202,6 +202,7 @@ namespace nm
           // no value
           else if(iter->find_first_of(delim) != iter->npos)
           {
+            --iter;
             c_.emplace(tmp);
           }
           else if(has_key)
