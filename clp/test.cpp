@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     cout << clp.msg() << endl;
     return 1;
   }
-  if(auto help = clp.contain("help"); help)
+  if(clp.contain("help") || clp.contain("h"))
   {
     cout << argv[0] << " -key value ...\n";
     cout << "\t-name name [--name]\n";
@@ -41,13 +41,17 @@ int main(int argc, char* argv[])
     cout << "height: " << h.value() << endl;
   else
     cout << clp.msg() << endl;
-  if(auto es = clp.get<std::string>("ex"); es)
+  if(auto es = clp.get<std::string>("es"); es)
     cout << "escape: " << es.value() << endl;
   else
     cout << clp.msg() << endl;
-  if(clp.contain("ex"))
-    cout << "single option `ex`\n";
-  cout << "none:\n";
-  for(auto&x: clp.none())
-    cout << x << endl;
+  if(clp.contain("es"))
+    cout << "found option `es`\n";
+  auto none = clp.none();
+  if(!none.empty())
+  {
+    cout << "none:\n";
+    for(auto&x: clp.none())
+      cout << x << endl;
+  }
 }

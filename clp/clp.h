@@ -36,7 +36,7 @@ namespace nm
         LONG
       };
 
-      Clp(int argc, char* argv[])
+      Clp(int argc, char* argv[]) noexcept
         : map_{}, cmd_{}, c_{}
       {
         for(int i = 1; i < argc; ++i)
@@ -45,7 +45,7 @@ namespace nm
       
       Clp(const Clp&) = delete;
 
-      Clp(Clp&& rhs)
+      Clp(Clp&& rhs) noexcept
         : map_{std::move(rhs.map_)},
           cmd_{std::move(rhs.cmd_)},
           none_{std::move(rhs.none_)},
@@ -72,12 +72,12 @@ namespace nm
         return *this;
       }
 
-      bool ok() const
+      bool ok() const noexcept
       {
         return msg_.empty();
       }
 
-      const std::string& msg() const
+      const std::string& msg() const noexcept
       {
         return msg_;
       }
@@ -122,30 +122,25 @@ namespace nm
             msg_ = "invalid argument";
           return {};
         }
-        else if constexpr(std::is_integral<T>::value)
+        else if constexpr(strict_same<std::string, T>::value)
         {
-          T res = get_int<T>(iter->second);
-          if(ok())
-            return res;
-          return {};
-        }
-        else if constexpr(std::is_floating_point<T>::value)
-        {
-          T res = get_float<T>(iter->second);
-          if(ok())
-            return res;
-          return {};
+          return iter->second;
         }
         else
-          return iter->second;
+        {
+          T res = get_value<T>(iter->second);
+          if(ok())
+            return res;
+          return {};
+        }
       }
 
-      std::set<std::string>& none()
+      const std::set<std::string>& none() const noexcept
       {
         return none_;
       }
 
-      bool contain(const std::string& key) noexcept
+      bool contain(const std::string& key) const noexcept
       {
         return c_.find(key) != c_.end();
       }
@@ -161,13 +156,13 @@ namespace nm
       {
         std::string tmp{};
         bool has_key{false};
+        msg_ = "invalid option";
         for(auto iter = cmd_.begin(); iter != cmd_.end(); ++iter)
         {
           has_key = false;
           if(*iter == "-")
           {
-            msg_ = "invalid option";
-            break;
+            return;
           }
           // get key
           if(iter->find_first_of(delim) != iter->npos && *iter != "--")
@@ -181,18 +176,21 @@ namespace nm
             c_.emplace(tmp);
             break;
           }
+          else if(*iter == "-")
+          {
+            return;
+          }
           // get escape
           if(*iter == "--")
           {
             if(!has_key)
             {
-              msg_ = "invalid option";
-              break;
+              return;
             }
             if(++iter != cmd_.end())
             {
               map_.insert({tmp, *iter});
-              ++iter;
+              c_.emplace(tmp);
             }
             else
             {
@@ -206,49 +204,38 @@ namespace nm
           {
             c_.emplace(tmp);
           }
-          // get value
           else if(has_key)
+          {
             map_.insert({tmp, *iter});
+            c_.emplace(tmp);
+          }
           else
+          {
             none_.emplace(*iter);
+          }
         }
+        msg_.clear();
       }
 
       template<typename T>
-      T get_int(const std::string& str) noexcept
+      T get_value(const std::string& str) noexcept
       {
         try
         {
-          if(std::is_signed<T>::value)
+          if constexpr(std::is_floating_point<T>::value)
+            return static_cast<T>(std::stold(str));
+          else if constexpr(std::is_signed<T>::value)
             return static_cast<T>(std::stoll(str));
           else
             return static_cast<T>(std::stoull(str));
         }
         catch(const std::out_of_range&)
         {
-          msg_ = "convert to int: out of range";
+          msg_ = "error: out of range";
         }
         catch(const std::invalid_argument&)
         {
-          msg_ = "convert to int: invalid argument";
-        }
-        return {};
-      }
-
-      template<typename T>
-      T get_float(const std::string& str) noexcept
-      {
-        try
-        {
-          return static_cast<T>(std::stold(str));
-        }
-        catch(const std::out_of_range& e)
-        {
-          msg_ = "convert to float: out of range";
-        }
-        catch(const std::invalid_argument& e)
-        {
-          msg_ = "convert to float: invalid argument";
+          msg_ = "error: invalid argument";
         }
         return {};
       }
