@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <list>
 #include <set>
+#include <type_traits>
 
 namespace nm
 {
@@ -81,13 +82,28 @@ namespace nm
         return msg_;
       }
 
+      // implicitly construct optional.
       template<typename T>
       std::optional<T> get(const std::string& key) noexcept
       {
-        static_assert(strict_same<size_t, T>::value ||
+        static_assert(
+            strict_same<bool, T>::value ||
+            strict_same<int, T>::value ||
+            strict_same<long, T>::value ||
+            strict_same<long long, T>::value ||
+            strict_same<unsigned int, T>::value ||
+            strict_same<unsigned long, T>::value ||
+            strict_same<unsigned long long, T>::value ||
+            strict_same<float, T>::value ||
             strict_same<double, T>::value ||
+            strict_same<long double, T>::value ||
             strict_same<std::string, T>::value,
-            "typename must be one of `int`, `double` or `std::string`.");
+            "\ntypename must be:\n"
+            "boolean type,\n"
+            "int type (signed or unsigned),\n"
+            "float type,\n"
+            "string type,\n"
+            "WITH NO CV QUALIFIER.");
 
         msg_.clear();
         auto iter = map_.find(key);
@@ -96,22 +112,32 @@ namespace nm
           msg_ = "no `" + key + "` in argument list";
           return {};
         }
-        if constexpr(strict_same<size_t, T>::value)
+        if constexpr(strict_same<bool, T>::value)
         {
-          size_t res = get_int(iter->second);
+          if(iter->second == "true")
+            return true;
+          else if(iter->second == "false")
+            return false;
+          else
+            msg_ = "invalid argument";
+          return {};
+        }
+        else if constexpr(std::is_integral<T>::value)
+        {
+          T res = get_int<T>(iter->second);
           if(ok())
             return res;
           return {};
         }
-        else if constexpr(strict_same<double, T>::value)
+        else if constexpr(std::is_floating_point<T>::value)
         {
-          double res = get_float(iter->second);
+          T res = get_float<T>(iter->second);
           if(ok())
             return res;
           return {};
         }
         else
-          return {iter->second};
+          return iter->second;
       }
 
       std::set<std::string>& none()
@@ -121,12 +147,7 @@ namespace nm
 
       bool contain(const std::string& key) noexcept
       {
-        for(const auto& x: c_)
-        {
-          if(x == key)
-            return true;
-        }
-        return false;
+        return c_.find(key) != c_.end();
       }
 
     private:
@@ -193,12 +214,15 @@ namespace nm
         }
       }
 
-      size_t get_int(const std::string& str) noexcept
+      template<typename T>
+      T get_int(const std::string& str) noexcept
       {
         try
         {
-          auto res = std::stoull(str);
-          return res;
+          if(std::is_signed<T>::value)
+            return static_cast<T>(std::stoll(str));
+          else
+            return static_cast<T>(std::stoull(str));
         }
         catch(const std::out_of_range&)
         {
@@ -211,12 +235,12 @@ namespace nm
         return {};
       }
 
-      double get_float(const std::string& str) noexcept
+      template<typename T>
+      T get_float(const std::string& str) noexcept
       {
         try
         {
-          double res = std::stod(str);
-          return res;
+          return static_cast<T>(std::stold(str));
         }
         catch(const std::out_of_range& e)
         {
