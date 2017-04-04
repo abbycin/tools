@@ -86,19 +86,19 @@ namespace nm
 
       string_ext& to_lower();
 
-      bool is_upper();
+      bool is_upper() const;
 
-      bool is_lower();
+      bool is_lower() const;
 
-      bool is_alpha();
+      bool is_alpha() const;
 
-      bool is_alnum();
+      bool is_alnum() const;
 
-      bool is_digit();
+      bool is_digit() const;
 
-      bool is_space();
+      bool is_space() const;
 
-      string_ext join(const std::vector<string_ext>& seq);
+      string_ext join(const std::vector<string_ext>& seq) const;
 
       string_ext& lstrip(const string_ext& chars = string_ext());
 
@@ -110,12 +110,12 @@ namespace nm
           const string_ext& newstr, long count = -1);
 
       void split(std::vector<string_ext>& res,
-          const string_ext& sep = string_ext(), long max = -1);
+          const string_ext& sep = string_ext(), long max = -1) const;
 
     private:
       enum { L_STRIP = 0, R_STRIP};
 
-      bool check(std::function<bool(iterator&)> pred);
+      bool check(std::function<bool(const_iterator&)> pred) const;
 
       string_ext& strip_impl(int, const string_ext& chars);
   };

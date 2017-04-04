@@ -11,9 +11,9 @@
 
 namespace nm
 {
-  bool string_ext::check(std::function<bool(iterator&)> pred)
+  bool string_ext::check(std::function<bool(const_iterator&)> pred) const
   {
-    for(auto iter = begin(); iter != end(); ++iter)
+    for(auto iter = cbegin(); iter != cend(); ++iter)
     {
       if(!pred(iter))
         return false;
@@ -82,49 +82,49 @@ namespace nm
     return *this;
   }
 
-  bool string_ext::is_upper()
+  bool string_ext::is_upper() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::isupper(*iter);
     });
   }
 
-  bool string_ext::is_lower()
+  bool string_ext::is_lower() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::islower(*iter);
     });
   }
 
-  bool string_ext::is_alpha()
+  bool string_ext::is_alpha() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::isalpha(*iter);
     });
   }
 
-  bool string_ext::is_alnum()
+  bool string_ext::is_alnum() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::isalnum(*iter);
     });
   }
 
-  bool string_ext::is_digit()
+  bool string_ext::is_digit() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::isdigit(*iter);
     });
   }
 
-  bool string_ext::is_space()
+  bool string_ext::is_space() const
   {
-    return check([](iterator& iter) {
+    return check([](const_iterator& iter) {
       return std::isspace(*iter);
     });
   }
 
-  string_ext string_ext::join(const std::vector<string_ext>& seq)
+  string_ext string_ext::join(const std::vector<string_ext>& seq) const
   {
     std::vector<string_ext>::size_type len = seq.size(), i = 0;
     if(len == 0)
@@ -178,7 +178,7 @@ namespace nm
   }
 
   void string_ext::split(std::vector<string_ext>& res,
-                         const string_ext& sep, long max)
+                         const string_ext& sep, long max) const
   {
     if(max < 0)
       max = std::numeric_limits<long>::max();
