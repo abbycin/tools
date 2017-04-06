@@ -65,7 +65,7 @@ namespace nm
     }
     return *this;
   }
-
+  
   string_ext& string_ext::to_upper()
   {
     std::transform(begin(), end(), begin(), [](unsigned char x) {
@@ -122,6 +122,24 @@ namespace nm
     return check([](const_iterator& iter) {
       return std::isspace(*iter);
     });
+  }
+
+  bool string_ext::match(const std::regex& re)
+  {
+    return std::regex_match(*this, re);
+  }
+
+  bool string_ext::match(const string_ext& pattern)
+  {
+    try
+    {
+      std::regex re{pattern};
+      return this->match(re);
+    }
+    catch(const std::regex_error&)
+    {
+      return false;
+    }
   }
 
   string_ext string_ext::join(const std::vector<string_ext>& seq) const
@@ -216,5 +234,100 @@ namespace nm
       }
     }
     res.emplace_back(this->substr(cur - begin()));
+  }
+
+  string_ext::Parser::Parser(void* x)
+    : arg_(x), parser_([](const string_ext&, void*) {})
+  {}
+
+  string_ext::Parser::Parser(int* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<int*>(res) = std::stoi(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(long* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<long*>(res) = std::stol(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(long long* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<long long*>(res) = std::stoll(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(unsigned* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<unsigned*>(res) = std::stoul(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(unsigned long* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<unsigned long*>(res) = std::stoul(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(unsigned long long* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<unsigned long long*>(res) = std::stoull(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(float* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<float*>(res) = std::stof(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(double* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<double*>(res) = std::stod(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(long double* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<long double*>(res) = std::stold(str);
+      })
+  {}
+
+  string_ext::Parser::Parser(bool* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        auto& r = *static_cast<bool*>(res);
+        if(str == "true")
+          r = true;
+        else if(str == "false")
+          r = false;
+        else
+          throw std::logic_error("invalid argument");
+      })
+  {}
+
+  string_ext::Parser::Parser(Base* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<Base*>(res) = str;
+      })
+  {}
+
+  string_ext::Parser::Parser(string_ext* x)
+    : arg_(x), parser_([](const string_ext& str, void* res) {
+        *static_cast<string_ext*>(res) = str;
+      })
+  {}
+
+  bool string_ext::Parser::parse(const string_ext& s)
+  {
+    try
+    {
+      parser_(s, arg_);
+    }
+    catch(...)
+    {
+      return false;
+    }
+    return true;
   }
 }
