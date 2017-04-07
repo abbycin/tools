@@ -236,8 +236,8 @@ namespace nm
     res.emplace_back(this->substr(cur - begin()));
   }
 
-  string_ext::Parser::Parser(void* x)
-    : arg_(x), parser_([](const string_ext&, void*) {})
+  string_ext::Parser::Parser(null_t)
+    : arg_(nullptr), parser_([](const string_ext&, void*) {})
   {}
 
   string_ext::Parser::Parser(int* x)

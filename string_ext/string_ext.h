@@ -19,7 +19,9 @@ namespace nm
   class string_ext : public std::string
   {
       using Base = std::string;
+      struct null_t {};
     public:
+      constexpr static null_t null{};
       string_ext()
         : Base()
       {}
@@ -156,7 +158,8 @@ namespace nm
           Parser(T* x)
             : arg_(x), parser_([](const string_ext&, void*) {})
           {}
-          Parser(void*);
+          Parser(void*) = delete;
+          Parser(null_t);
           Parser(int*);
           Parser(long*);
           Parser(long long*);

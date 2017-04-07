@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
   int _1st, _2nd, _3rd, _4th;
   string str;
   // skip `wtf`
-  if(alnum.extract(re2, &str, &_1st, &_2nd, (void*)NULL, &_3rd, &_4th))
+  if(alnum.extract(re2, &str, &_1st, &_2nd, string_ext::null, &_3rd, &_4th))
     cout << str << ": " << _1st << "." << _2nd << "." << _3rd << "." << _4th << endl;
   else
     cout << "can't extract!\n";
