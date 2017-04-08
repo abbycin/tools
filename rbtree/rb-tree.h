@@ -153,6 +153,7 @@ namespace nm
         if(!iter)
           return false;
         this->remove(root_, iter.data());
+        --size_;
         return true;
       }
 
@@ -169,6 +170,7 @@ namespace nm
       void clear()
       {
         this->clear(root_, root_->root);
+        size_ = 0;
       }
 
     private:
@@ -229,10 +231,10 @@ namespace nm
           t->root = x;
         else
         {
-          if(y == y->parent->lhs)
-            y->parent->lhs = x;
-          else
+          if(y == y->parent->rhs)
             y->parent->rhs = x;
+          else
+            y->parent->lhs = x;
         }
         x->rhs = y;
         y->parent = x;
@@ -261,6 +263,7 @@ namespace nm
             x = tmp;
             tmp = x->parent;
           }
+          x = tmp;
         }
         return x;
       }
@@ -476,7 +479,7 @@ namespace nm
           x = z->rhs;
           transplant(t, z, z->rhs);
         }
-        else if(z->lhs == t->nil)
+        else if(z->rhs == t->nil)
         {
           x = z->lhs;
           transplant(t, z, z->lhs);
@@ -494,7 +497,7 @@ namespace nm
           {
             transplant(t, y, y->rhs);
             y->rhs = z->rhs;
-            y->lhs->parent = y;
+            y->rhs->parent = y;
           }
           transplant(t, z, y);
           y->lhs = z->lhs;
@@ -522,13 +525,15 @@ namespace nm
         return nullptr;
       }
 
-      void clear(rbnode* t, node* root)
+      void clear(rbnode* t, node*& root)
       {
         node* tmp = root;
         if(tmp != t->nil)
         {
-          clear(t, tmp->lhs);
-          clear(t, tmp->rhs);
+          if(tmp->lhs != t->nil)
+            clear(t, tmp->lhs);
+          if(tmp->rhs != t->nil)
+            clear(t, tmp->rhs);
 #ifdef DEBUG
           std::cout << tmp->key << " => "
             << (tmp->color == RED ? "\e[31mred\e[0m" : "\e[7mblack\e[0m")
@@ -538,6 +543,7 @@ namespace nm
           delete tmp;
           tmp = nullptr;
         }
+        root = t->nil;
       }
   };
 }
