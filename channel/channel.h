@@ -187,6 +187,16 @@ class Queue
       size_ += 1;
     }
 
+    void push(T&& data)
+    {
+      auto tmp = alloc<Node>();
+      tmp->data = std::move(data);
+      tmp->next.store(nullptr, std::memory_order_relaxed);
+      auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
+      old_head->next.store(tmp, std::memory_order_release);
+      size_ += 1;
+    }
+
     bool try_pop(T& data)
     {
       auto next = tail_->next.load(std::memory_order_acquire);
@@ -227,6 +237,15 @@ class ReceiverImpl
     void send(const T& data)
     {
       queue_.push(data);
+      if(!state_)
+      {
+        cond_.notify_one();
+      }
+    }
+
+    void send(T&& data)
+    {
+      queue_.push(std::move(data));
       if(!state_)
       {
         cond_.notify_one();
@@ -294,6 +313,11 @@ class Sender
       sender_->send(data);
     }
 
+    void send(T&& data)
+    {
+      sender_->send(std::move(data));
+    }
+
     Sender clone()
     {
       return *this;
@@ -322,7 +346,6 @@ class Receiver
 {
   public:
     template<typename U> friend std::tuple<Sender<U>, Receiver<U>> channel();
-    friend class Sender<T>;
 
     Receiver(Receiver&& rhs)
     {
@@ -359,11 +382,6 @@ class Receiver
     Receiver(const Receiver&) = delete;
 
     Receiver& operator= (const Receiver&) = delete;
-
-    void send(const T& data)
-    {
-      recv_->send(data);
-    }
 
     std::shared_ptr<ReceiverImpl<T>> get()
     {
