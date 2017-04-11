@@ -1,4 +1,5 @@
 ver = debug
+user := $(shell id -u)
 
 ifeq ($(ver), release)
 	FLAG = Release
@@ -15,9 +16,18 @@ ifeq ($(JOBS),)
 	endif
 endif
 
+ifeq ($(user), 0)
+	INSTALL = @cd build && make install
+else
+	INSTALL = $(error please run as root!)
+endif
+
 all:
 	@if [ ! -d build ]; then mkdir build; fi
 	cd build && cmake -DCMAKE_BUILD_TYPE=$(FLAG) .. && cmake --build . -- -j$(JOBS)
+
+install:
+	$(INSTALL)
 
 clean:
 	@rm -rf bin build lib
