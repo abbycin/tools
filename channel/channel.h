@@ -202,7 +202,7 @@ class Queue
       auto next = tail_->next.load(std::memory_order_acquire);
       if(next == nullptr)
         return false;
-      data = next->data;
+      data = std::move(next->data);
       dealloc(tail_);
       tail_ = next;
       size_ -= 1;
@@ -394,8 +394,7 @@ class Receiver
 template<typename T>
 std::tuple<Sender<T>, Receiver<T>> channel()
 {
-  ReceiverImpl<T>* recv = new ReceiverImpl<T>;
-  Receiver<T> receiver(recv);
+  Receiver<T> receiver(new ReceiverImpl<T>());
   Sender<T> sender(receiver.get());
   return std::make_tuple(std::move(sender), std::move(receiver));
 }

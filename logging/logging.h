@@ -8,56 +8,59 @@
 #ifndef LOGGING_H_
 #define LOGGING_H_
 
-#include <string>
+#include <memory>
 #include <sstream>
-#include <functional>
 
 namespace nm
 {
-  class Stream; 
+  class Stream;
   class Logger
   {
-    private:
-      class Wrapper
-      {
-        public:
-          Wrapper(std::stringstream& s)
-            : ss_(s)
-          {}
-
-          template<typename T> Wrapper& operator<< (const T& data)
-          {
-            ss_ << data;
-            return *this;
-          }
-
-        private:
-          std::stringstream& ss_;
-      };
     public:
       enum Level { INFO = 0, WARNING, DEBUG, ERR, FATAL };
-      // default interval is 24hr in milliseconds
-      static bool create(const std::string& path = "",
-                           const std::string& prefix = "",
-                           long interval = 1000 * 60 * 60 * 24);
-      // throw 'invalid receiver' when no Logger::create be called.
+      // default interval is 24hr in milliseconds, minimum duration is 1s.
+      static bool create(const char* path = "",
+                           const char* prefix = "",
+                           long interval = 60 * 60 * 24);
       Logger(const char*, long, const char*, Level);
 
+      template<typename T> Logger& operator<< (const T& data)
+      {
+        ss_ << data;
+        return *this;
+      }
+
       Logger(const Logger&) = delete;
-      Logger(Logger&&);
+      Logger(Logger&&) = delete;
+      Logger& operator= (const Logger&) = delete;
+      Logger& operator= (Logger&&) = delete;
       ~Logger();
 
-      Wrapper stream();
-
     private:
-      Stream* stream_;
+      std::unique_ptr<Stream> stream_;
+      thread_local static std::stringstream ss_;
   };
 
-#define LOG_INFO nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::INFO).stream()
-#define LOG_WARN nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::WARNING).stream()
-#define LOG_DEBUG nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::DEBUG).stream()
-#define LOG_ERR nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::ERR).stream()
-#define LOG_FATAL nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::FATAL).stream()
+  struct Dummy
+  {
+    template<typename T> Dummy& operator<< (const T&) { return *this; }
+  };
+
+#ifndef NOLOG
+#define LOG_DISABLED false
+#define LOG_INFO nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::INFO)
+#define LOG_WARN nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::WARNING)
+#define LOG_DEBUG nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::DEBUG)
+#define LOG_ERR nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::ERR)
+#define LOG_FATAL nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::FATAL)
+#else
+#define LOG_DISABLED true
+#define LOG_INFO nm::Dummy()
+#define LOG_WARN LOG_INFO
+#define LOG_DEBUG LOG_INFO
+#define LOG_ERR LOG_INFO
+#define LOG_FATAL LOG_INFO
+#endif
 }
 
 #endif // LOGGING_H_

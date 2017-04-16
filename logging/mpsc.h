@@ -100,7 +100,9 @@ namespace nm
   class ReceiverImpl
   {
     private:
-      ReceiverImpl() = default;
+      ReceiverImpl()
+        : real_queue_(new Queue<T>()), queue_(nullptr)
+      {}
 
     public:
       template<typename U> friend std::tuple<Sender<U>, Receiver<U>> channel();
@@ -111,11 +113,15 @@ namespace nm
 
       ReceiverImpl(ReceiverImpl&& rhs) = delete;
 
-      ~ReceiverImpl() = default;
+      ~ReceiverImpl()
+      {
+        if(real_queue_)
+          delete real_queue_;
+      }
 
       void send(const T& data)
       {
-        queue_.push(data);
+        queue_->push(data);
         if(!state_)
         {
           cond_.notify_one();
@@ -124,7 +130,7 @@ namespace nm
 
       void send(T&& data)
       {
-        queue_.push(std::move(data));
+        queue_->push(std::move(data));
         if(!state_)
         {
           cond_.notify_one();
@@ -133,7 +139,7 @@ namespace nm
 
       bool try_recv(T& data)
       {
-        return queue_.try_pop(data);
+        return queue_->try_pop(data);
       }
 
       void recv(T& data)
@@ -144,10 +150,10 @@ namespace nm
           {
             std::unique_lock<std::mutex> lk(mtx_);
             cond_.wait(lk, [this] {
-                return !switcher_ || !queue_.empty();
+                return !switcher_ || !queue_->empty();
               });
           }
-          if(queue_.try_pop(data))
+          if(queue_->try_pop(data))
           {
             state_ = true;
             break;
@@ -171,12 +177,22 @@ namespace nm
         return switcher_;
       }
 
+      void init()
+      {
+        std::call_once(once_, [this] {
+          queue_.reset(real_queue_);
+          real_queue_ = nullptr;
+        });
+      }
+
     private:
-      Queue<T> queue_;
+      Queue<T>* real_queue_;
+      std::unique_ptr<Queue<T>> queue_;
       std::mutex mtx_;
       std::condition_variable cond_;
       bool state_{false};
       bool switcher_{true};
+      std::once_flag once_;
   };
 
   template<typename T>
@@ -261,6 +277,11 @@ namespace nm
       bool is_working()
       {
         return recv_->is_working();
+      }
+
+      void init()
+      {
+        recv_->init();
       }
 
     private:

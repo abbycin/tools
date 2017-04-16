@@ -60,9 +60,7 @@ int main(int argc, char* argv[])
 
   size_t num = std::stoull(argv[1]);
 
-  auto pair = channel<size_t>();
-  auto& tx = std::get<0>(pair);
-  auto& rx = std::get<1>(pair);
+  auto [tx, rx] = channel<size_t>();
   auto start = now();
 
   std::thread rcv(receiver, std::move(rx));
