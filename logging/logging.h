@@ -8,20 +8,26 @@
 #ifndef LOGGING_H_
 #define LOGGING_H_
 
-#include <memory>
 #include <sstream>
+#include <functional>
 
 namespace nm
 {
-  class Stream;
   class Logger
   {
     public:
+      struct Dummy
+      {
+        template<typename T> Dummy& operator<< (const T&) { return *this; }
+      };
       enum Level { INFO = 0, WARNING, DEBUG, ERR, FATAL };
       // default interval is 24hr in milliseconds, minimum duration is 1s.
-      static bool create(const char* path = "",
-                           const char* prefix = "",
-                           long interval = 60 * 60 * 24);
+      static bool create_async(const char* path = "",
+                               const char* prefix = "",
+                               long interval = 60 * 60 * 24);
+      static bool create_sync(const char* path = "",
+                              const char* prefix = "",
+                              long interval = 60 * 60 * 24);
       Logger(const char*, long, const char*, Level);
 
       template<typename T> Logger& operator<< (const T& data)
@@ -37,13 +43,8 @@ namespace nm
       ~Logger();
 
     private:
-      std::unique_ptr<Stream> stream_;
       thread_local static std::stringstream ss_;
-  };
-
-  struct Dummy
-  {
-    template<typename T> Dummy& operator<< (const T&) { return *this; }
+      static std::function<void(std::stringstream&)> cb_;
   };
 
 #ifndef NOLOG
@@ -55,7 +56,7 @@ namespace nm
 #define LOG_FATAL nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::FATAL)
 #else
 #define LOG_DISABLED true
-#define LOG_INFO nm::Dummy()
+#define LOG_INFO nm::Logger::Dummy()
 #define LOG_WARN LOG_INFO
 #define LOG_DEBUG LOG_INFO
 #define LOG_ERR LOG_INFO

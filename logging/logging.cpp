@@ -6,57 +6,329 @@
 **********************************************************/
 
 #include "logging.h"
-#include "mpsc.h"
-#include <functional>
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
 #include <unistd.h>
 #include <cstring>
 #include <thread>
-#include <cerrno>
-#include <cstdlib>
 #include <sys/time.h>
 #include <syscall.h>
 
 namespace nm
 {
-  inline int get_tid()
+  namespace meta
   {
-    return static_cast<int>(syscall(SYS_gettid));
+    class Sender;
+    class Receiver;
+    std::pair<Sender, Receiver> channel();
+
+    class Queue
+    {
+      private:
+        struct Node
+        {
+          std::string data;
+          std::atomic<Node*> next;
+        };
+
+      public:
+        Queue()
+          : size_(0),
+            head_(new Node()),
+            tail_(head_.load())
+        {
+          auto tmp = head_.load();
+          tmp->next.store(nullptr);
+        }
+
+        ~Queue()
+        {
+          auto tmp = head_.load();
+          Node* cur = nullptr;
+          while(tmp != nullptr)
+          {
+            cur = tmp;
+            tmp = tmp->next.load();
+            delete cur;
+          }
+        }
+
+        bool empty() const
+        {
+          return size_ == 0;
+        }
+
+        void push(const std::string& data)
+        {
+          auto tmp = new Node();
+          tmp->data = data;
+          tmp->next.store(nullptr, std::memory_order_relaxed);
+          auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
+          old_head->next.store(tmp, std::memory_order_release);
+          size_ += 1;
+        }
+
+        void push(std::string&& data)
+        {
+          auto tmp = new Node();
+          tmp->data = std::move(data);
+          tmp->next.store(nullptr, std::memory_order_relaxed);
+          auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
+          old_head->next.store(tmp, std::memory_order_release);
+          size_ += 1;
+        }
+
+        bool try_pop(std::string& data)
+        {
+          auto next = tail_->next.load(std::memory_order_acquire);
+          if(next == nullptr)
+            return false;
+          data = std::move(next->data);
+          delete tail_;
+          tail_ = next;
+          size_ -= 1;
+          return true;
+        }
+
+      private:
+        std::atomic<size_t> size_;
+        std::atomic<Node*> head_;
+        Node* tail_;
+    };
+
+    class ReceiverImpl
+    {
+      private:
+        ReceiverImpl()
+          : real_queue_(new Queue()), queue_(nullptr)
+        {}
+
+      public:
+        friend std::pair<Sender, Receiver> channel();
+
+        ReceiverImpl(const ReceiverImpl&) = delete;
+
+        ReceiverImpl& operator= (const ReceiverImpl&) = delete;
+
+        ReceiverImpl(ReceiverImpl&& rhs) = delete;
+
+        ~ReceiverImpl()
+        {
+          if(real_queue_)
+            delete real_queue_;
+        }
+        
+        void send(const std::string& data)
+        {
+          queue_->push(data);
+          if(!state_)
+          {
+            cond_.notify_one();
+          }
+        }
+
+        void send(std::string&& data)
+        {
+          queue_->push(std::move(data));
+          if(!state_)
+          {
+            cond_.notify_one();
+          }
+        }
+
+        bool try_recv(std::string& data)
+        {
+          return queue_->try_pop(data);
+        }
+
+        void recv(std::string& data)
+        {
+          for(;switcher_;)
+          {
+            if(!state_)
+            {
+              std::unique_lock<std::mutex> lk(mtx_);
+              cond_.wait(lk, [this] {
+                return !switcher_ || !queue_->empty();
+              });
+            }
+            if(queue_->try_pop(data))
+            {
+              state_ = true;
+              break;
+            }
+            state_ = false;
+          }
+        }
+
+        void signal()
+        {
+          // modify the shared variable must under the mutex in order to correctly
+          // publish the modification to the waiting thread, Even if the shared
+          // variable is atomic
+          std::lock_guard<std::mutex> lg(mtx_);
+          switcher_ = false;
+          cond_.notify_one();
+        }
+
+        bool is_working()
+        {
+          return switcher_;
+        }
+
+        void init()
+        {
+          std::call_once(once_, [this] {
+            queue_.reset(real_queue_);
+            real_queue_ = nullptr;
+          });
+        }
+
+      private:
+        Queue* real_queue_;
+        std::unique_ptr<Queue> queue_;
+        std::mutex mtx_;
+        std::condition_variable cond_;
+        bool state_{false};
+        bool switcher_{true};
+        std::once_flag once_;
+    };
+
+    class Sender
+    {
+      public:
+        friend std::pair<Sender, Receiver> channel();
+
+        Sender(Sender&& rhs)
+        {
+          sender_ = rhs.sender_;
+          rhs.sender_.reset();
+        }
+
+        ~Sender() = default;
+        
+        void send(const std::string& data)
+        {
+          sender_->send(data);
+        }
+
+        void send(std::string&& data)
+        {
+          sender_->send(std::move(data));
+        }
+
+      private:
+        Sender(std::shared_ptr<ReceiverImpl> recv)
+          : sender_(recv)
+        {}
+
+        Sender(const Sender& rhs)
+        {
+          if(this != &rhs)
+          {
+            sender_ = rhs.sender_;
+          }
+        }
+
+        Sender& operator= (const Sender&) = delete;
+
+        std::shared_ptr<ReceiverImpl> sender_;
+    };
+
+    class Receiver
+    {
+      public:
+        friend std::pair<Sender, Receiver> channel();
+
+        Receiver(Receiver&& rhs)
+        {
+          if(this != &rhs)
+          {
+            recv_ = rhs.recv_;
+            rhs.recv_.reset();
+          }
+        }
+
+        ~Receiver() = default;
+
+        void recv(std::string& data)
+        {
+          recv_->recv(data);
+        }
+
+        bool try_recv(std::string& data)
+        {
+          return recv_->try_recv(data);
+        }
+
+        void singal()
+        {
+          recv_->signal();
+        }
+
+        bool is_working()
+        {
+          return recv_->is_working();
+        }
+
+        void init()
+        {
+          recv_->init();
+        }
+
+      private:
+        Receiver(ReceiverImpl* recv)
+          : recv_(recv)
+        {}
+
+        Receiver(const Receiver&) = delete;
+
+        Receiver& operator= (const Receiver&) = delete;
+
+        std::shared_ptr<ReceiverImpl> get()
+        {
+          return recv_;
+        }
+
+        std::shared_ptr<ReceiverImpl> recv_;
+    };
+
+    std::pair<Sender, Receiver> channel()
+    {
+      ReceiverImpl* recv = new ReceiverImpl();
+      Receiver receiver(recv);
+      Sender sender(receiver.get());
+      return {std::move(sender), std::move(receiver)};
+    }
+
+    inline int get_tid()
+    {
+      return static_cast<int>(syscall(SYS_gettid));
+    }
+
+    static const char* MSG[] = {
+      " [INFO]  ",
+      " [WARN]  ",
+      " [DEBUG] ",
+      " [ERROR] ",
+      " [FATAL] "
+    };
   }
+}
 
-  static const char* MSG[] = {
-    " [INFO]  ",
-    " [WARN]  ",
-    " [DEBUG] ",
-    " [ERROR] ",
-    " [FATAL] "
-  };
-
-  class Stream
-  {
-    public:
-      Stream(Sender<std::string>& s)
-        : sender_(s)
-      {}
-
-      ~Stream() = default;
-
-      void finish(std::stringstream& ss)
-      {
-        ss << "\n";
-        sender_.send(ss.str());
-      }
-
-    private:
-      Sender<std::string>& sender_;
-  };
+namespace nm
+{
+  using namespace meta;
 
   class FileLog
   {
     public:
-      FileLog(Receiver<std::string>& rx, const std::string& path,
+      FileLog(const std::string& path,
               const std::string& prefix, long interval)
-        : rcv_(rx), path_(path), interval_(interval),
-          count_(COUNT_DOWN), time_cache_(0), last_roll_(0), fp_(nullptr)
+        : path_(path), interval_(interval), count_(now()),
+          time_cache_(count_), last_roll_(count_), fp_(nullptr)
       {
         if(path_.empty())
         {
@@ -73,7 +345,12 @@ namespace nm
           path_ += prefix + "_";
       }
 
-      ~FileLog()
+      FileLog()
+        : path_(), interval_(-1), count_(now()),
+          time_cache_(count_), last_roll_(count_), fp_(stderr)
+      {}
+
+      virtual ~FileLog()
       {
         if(fp_)
         {
@@ -84,40 +361,37 @@ namespace nm
 
       bool init()
       {
-        errno = 0;
-        time_cache_ = now();
-        last_roll_ = time_cache_;
         update_time();
-        fp_ = fopen(new_name().c_str(), "a+");
-        if(fp_ == nullptr)
+        if(!fp_)
         {
-          fprintf(stderr, "open '%s': %s\n", name_cache_.c_str(), strerror(errno));
-          return false;
+          errno = 0;
+          fp_ = fopen(new_name().c_str(), "a+");
+          if(fp_ == nullptr)
+          {
+            fprintf(stderr, "open '%s': %s\n", name_cache_.c_str(), strerror(errno));
+            return false;
+          }
+          this->link();
         }
-        this->link();
         return true;
       }
 
-      void write()
+      void write(std::string&& data)
       {
-        while(rcv_.is_working())
-        {
-          rcv_.recv(data_);
-          roll();
-        }
-        while(rcv_.try_recv(data_))
-          roll();
+        std::lock_guard<std::mutex> lg(mtx_);
+        data_ = std::move(data);
+        roll();
       }
+
     private:
-      enum { COUNT_DOWN = 1024 };
-      Receiver<std::string>& rcv_;
+      enum { COUNT_DOWN = 3 };
+      std::mutex mtx_;
       std::string path_;
       const long interval_;
-      int count_;
+      long count_;
       long time_cache_;
       long last_roll_;
       FILE* fp_;
-      std::string data_;
       std::string name_cache_;
       std::string current_log_;
       char time_buf_[25];
@@ -162,7 +436,10 @@ namespace nm
         return name_cache_;
       }
 
-      void roll()
+    protected:
+      std::string data_;
+
+      virtual void roll()
       {
         size_t rest = data_.size();
         if(rest == 0)
@@ -187,13 +464,14 @@ namespace nm
           rest -= write_bytes;
         }
         data_.clear();
-        if(count_-- >= 0)
-          return;
-        fflush_unlocked(fp_);
-        count_ = COUNT_DOWN;
+        if(time_cache_ - count_ >= COUNT_DOWN)
+        {
+          count_ = time_cache_;
+          fflush_unlocked(fp_);
+        }
         if(interval_ <= 0)
           return;
-        if(time_cache_ - last_roll_ > interval_)
+        if(time_cache_ - last_roll_ >= interval_)
         {
           last_roll_ = time_cache_;
           fflush(fp_);
@@ -216,11 +494,34 @@ namespace nm
       }
   };
 
-  class StdLog
+  class FileLogAsync : public FileLog
   {
     public:
-      StdLog(Receiver<std::string>& rcv)
-        : rcv_(rcv), fp_(stderr)
+      FileLogAsync(Receiver& rx, const std::string& path,
+      const std::string& prefix, long interval)
+      : FileLog(path, prefix, interval), rcv_(rx)
+        {}
+
+      void write()
+      {
+        while(rcv_.is_working())
+        {
+          rcv_.recv(data_);
+          roll();
+        }
+        while(rcv_.try_recv(data_))
+          roll();
+      }
+
+    private:
+      Receiver& rcv_;
+  };
+
+  class StdLog : public FileLog
+  {
+    public:
+      StdLog(Receiver& rcv)
+        : FileLog(), rcv_(rcv)
       {}
 
       ~StdLog() = default;
@@ -237,53 +538,58 @@ namespace nm
       }
 
     private:
-      Receiver<std::string>& rcv_;
-      FILE* fp_;
-      std::string data_;
-
-      void roll()
-      {
-        const char* data = data_.data();
-        size_t rest = data_.size();
-        size_t write_bytes = 0;
-        while(rest != 0)
-        {
-          write_bytes = fwrite_unlocked(data, 1, rest, fp_);
-          data += write_bytes;
-          rest -= write_bytes;
-        }
-        data_.clear();
-      }
+      Receiver& rcv_;
   };
 
   using Ptype = std::unique_ptr<std::thread, std::function<void(std::thread*)>>;
-  static auto pair = channel<std::string>();
+  static auto mpsc = channel();
+  static std::unique_ptr<FileLog> g_log;
   static Ptype backgroud;
+  static std::once_flag g_once;
   static bool ok = true;
 
   static void create_logger(const char* path, const char* prefix,
-                            long interval)
+                            long interval, bool is_sync)
   {
     if(LOG_DISABLED)
       return;
+    if(path == nullptr)
+      path = "";
+    if(prefix == nullptr)
+      prefix = "";
     char* res = getenv("LOG_TYPE");
     std::string env;
     if(res != nullptr)
       env = res;
-    auto& rx = std::get<1>(pair);
+    auto& rx = mpsc.second;
+    if(is_sync)
+    {
+      if(env != "stdout")
+      {
+        g_log.reset(new FileLog(path, prefix, interval));
+        if(!g_log->init())
+        {
+          ok = false;
+          return;
+        }
+      }
+      else
+      {
+        g_log.reset(new StdLog(rx));
+        g_log->init();
+      }
+      return;
+    }
     if(env != "stdout")
     {
-      if(path == nullptr)
-        path = "";
-      if(prefix == nullptr)
-        prefix = "";
-      auto log = std::make_shared<FileLog>(rx, path, prefix, interval);
-      if(!log->init())
+      g_log.reset(new FileLogAsync(rx, path, prefix, interval));
+      if(!g_log->init())
       {
         ok = false;
         return;
       }
-      backgroud = Ptype(new std::thread([log] {
+      backgroud = Ptype(new std::thread([] {
+        auto log = static_cast<FileLogAsync*>(g_log.get());
         log->write();
       }), [&rx](std::thread* tid) {
         rx.singal();
@@ -293,8 +599,10 @@ namespace nm
     }
     else
     {
-      auto log = std::make_shared<StdLog>(rx);
-      backgroud = Ptype(new std::thread([log] {
+      g_log.reset(new StdLog(rx));
+      g_log->init();
+      backgroud = Ptype(new std::thread([] {
+        auto log = static_cast<StdLog*>(g_log.get());
         log->write();
       }), [&rx](std::thread* tid){
         rx.singal();
@@ -306,21 +614,27 @@ namespace nm
       rx.init(); // make channel valid.
   }
 
-  bool Logger::create(const char* path,
-                        const char* prefix, long interval)
+  bool Logger::create_async(const char* path, const char* prefix, long interval)
   {
-    static std::once_flag g_once;
-    std::call_once(g_once, create_logger, path, prefix, interval);
+    std::call_once(g_once, create_logger, path, prefix, interval, false);
+    if(!cb_)
+      cb_ = [](std::stringstream& ss) { mpsc.first.send(ss.str()); };
+    return ok;
+  }
+
+  bool Logger::create_sync(const char* path, const char* prefix, long interval)
+  {
+    std::call_once(g_once, create_logger, path, prefix, interval, true);
+    if(!cb_)
+      cb_ = [](std::stringstream& ss) { g_log->write(ss.str()); };
     return ok;
   }
 
   thread_local std::stringstream Logger::ss_{""};
+  std::function<void(std::stringstream&)> Logger::cb_{};
 
   Logger::Logger(const char* file, long line, const char* func, Level level)
-    : stream_(nullptr)
   {
-    auto& tx = std::get<0>(pair);
-    stream_.reset(new Stream{tx});
     ss_ << " " << get_tid()
             << MSG[level] << basename(file) << ":" << line << " ";
     if(func)
@@ -329,10 +643,8 @@ namespace nm
 
   Logger::~Logger()
   {
-    if(stream_)
-    {
-      stream_->finish(ss_);
-      ss_.str("");
-    }
+    ss_ << "\n";
+    cb_(ss_);
+    ss_.str("");
   }
 }
