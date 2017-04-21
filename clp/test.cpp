@@ -14,7 +14,7 @@ using namespace std;
 int main(int argc, char* argv[])
 {
   Clp clpl{argc, argv};
-  clpl.parse().parse(Clp::Option::LONG);
+  clpl.parse(Clp::ALL);
   auto clp = std::move(clpl);
   if(!clp.ok())
   {

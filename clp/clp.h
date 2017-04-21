@@ -5,16 +5,17 @@
           Created Time: Wed 29 Mar 2017 07:03:38 PM CST
 **********************************************************/
 
-#ifndef CLP
-#define CLP
+#ifndef CLP_H_
+#define CLP_H_
 
-#include <string>
+#include <fstream>
 #include <unordered_map>
 #include <optional>
 #include <stdexcept>
 #include <list>
 #include <set>
 #include <type_traits>
+#include <string_ext.h>
 
 namespace nm
 {
@@ -30,17 +31,42 @@ namespace nm
     };
 
     public:
-      enum struct Option : int
+      enum Option
       {
-        SHORT = 0,
-        LONG
+        SHORT = 1,
+        LONG = 2,
+        ALL = 3
       };
 
       Clp(int argc, char* argv[]) noexcept
         : map_{}, cmd_{}, c_{}
       {
         for(int i = 1; i < argc; ++i)
-          cmd_.push_back(argv[i]);
+          cmd_.emplace_back(argv[i]);
+      }
+
+      Clp(const std::string& path)
+        : map_{}, cmd_{}, none_{}, c_{}, msg_{}
+      {
+        errno = 0;
+        std::ifstream in(path);
+        if(in.is_open())
+        {
+          string_ext line{};
+          while(std::getline(in, line))
+          {
+            if(!line.empty() && line[0] == '#')
+              continue;
+            line.split(cmd_, " ");
+          }
+          for(auto& x: cmd_)
+          {
+            x.strip();
+          }
+          in.close();
+          return;
+        }
+        msg_ = strerror(errno);
       }
       
       Clp(const Clp&) = delete;
@@ -57,8 +83,10 @@ namespace nm
 
       ~Clp() noexcept {}
 
-      Clp& parse(Option op = Option::SHORT) 
+      Clp& parse(Option op)
       {
+        if(!msg_.empty())
+          return *this;
         msg_.clear();
         switch(op)
         {
@@ -66,6 +94,9 @@ namespace nm
             parse("-");
             break;
           case Option::LONG:
+            parse("--");
+          case Option::ALL:
+            parse("-");
             parse("--");
             break;
         }
@@ -147,7 +178,7 @@ namespace nm
 
     private:
       std::unordered_map<std::string, std::string> map_;
-      std::list<std::string> cmd_;
+      std::list<string_ext> cmd_;
       std::set<std::string> none_;
       std::set<std::string> c_;
       std::string msg_;
@@ -243,4 +274,4 @@ namespace nm
   };
 }
 
-#endif // CLP
+#endif // CLP_H_
