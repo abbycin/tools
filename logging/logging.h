@@ -8,13 +8,13 @@
 #ifndef LOGGING_H_
 #define LOGGING_H_
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstring>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <thread>
 #include <sys/time.h>
 #include <syscall.h>
@@ -446,6 +446,231 @@ namespace nm
         }
     };
 
+    template<size_t SIZE = 4096>
+    class Stream
+    {
+        template<size_t N> class Buffer
+        {
+          public:
+            Buffer() : pos_(0), count_(0) {}
+            ~Buffer() {}
+
+            void append(const char* s, size_t n)
+            {
+              if(n + pos_ < N)
+              {
+                std::copy(s, s + n, buffer_ + pos_);
+                pos_ += n;
+              }
+              count_ += n;
+            }
+
+            void clear()
+            {
+              pos_ = 0;
+              count_ = 0;
+            }
+
+            // drop message silently when it's too long.
+            std::string to_string()
+            {
+              if(count_ >= N)
+              {
+                return {};
+              }
+              return {buffer_, pos_};
+            }
+          private:
+            size_t pos_;
+            size_t count_;
+            char buffer_[N];
+        };
+      public:
+        Stream() = default;
+        ~Stream() = default;
+        Stream(const Stream&) = delete;
+        Stream(Stream&&) = delete;
+        Stream& operator= (const Stream&) = delete;
+        Stream& operator= (Stream&&) = delete;
+
+        Stream& operator<< (const char* s)
+        {
+          if(s)
+          {
+            buffer_.append(s, std::char_traits<char>::length(s));
+          }
+          else
+          {
+            buffer_.append("(null)", 6);
+          }
+          return *this;
+        }
+
+        Stream& operator<< (const unsigned char* s)
+        {
+          return this->operator<<(reinterpret_cast<const char*>(str));
+        }
+
+        Stream& operator<< (const std::string& data)
+        {
+          buffer_.append(data.c_str(), data.size());
+          return *this;
+        }
+
+        Stream& operator<< (const char c)
+        {
+          buffer_.append(&c, 1);
+          return *this;
+        }
+
+        Stream& operator<< (const short data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const int data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const long data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const long long data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const unsigned short data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const unsigned int data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const unsigned long data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const unsigned char data)
+        {
+          if(data > std::numeric_limits<char>::max())
+            return this->operator<<(static_cast<unsigned>(data));
+          return this->operator<<(static_cast<char>(data));
+        }
+
+        Stream& operator<< (const unsigned long long data)
+        {
+          return this->fmt(data);
+        }
+
+        Stream& operator<< (const float data)
+        {
+          return this->append("%.6g", data);
+        }
+
+        Stream& operator<< (const double data)
+        {
+          return this->append("%.10g", data);
+        }
+
+        Stream& operator<< (const void* data)
+        {
+          auto p = reinterpret_cast<uintptr_t>(data);
+          fmt_buf_[0] = '0';
+          fmt_buf_[1] = 'x';
+          fmt_len_ = convertHex(fmt_buf_ + 2, p);
+          buffer_.append(fmt_buf_, fmt_len_ + 2);
+          return *this;
+        }
+
+        std::string str()
+        {
+          return buffer_.to_string();
+        }
+
+        void clear()
+        {
+          buffer_.clear();
+        }
+
+        void append(const char* s, size_t len)
+        {
+          buffer_.append(s, len);
+        }
+
+      private:
+        Buffer<SIZE> buffer_;
+        char fmt_buf_[32] = {0};
+        int fmt_len_{0};
+
+        // the following convert functions are copied from muduo
+        const char* const digits = "9876543210123456789";
+        const char* const digitsHex = "0123456789abcdef";
+        const char* zero = digits + 9;
+
+        template<typename T>
+        size_t convert(char buf[], const T value)
+        {
+          T i = value;
+          char* p = buf;
+
+          do {
+            int lsd = static_cast<int>(i % 10);
+            i /= 10;
+            *p++ = zero[lsd]; // maybe negative index
+          } while (i != 0);
+
+          if (value < 0) {
+            *p++ = '-';
+          }
+          *p = '\0';
+          std::reverse(buf, p);
+          return p - buf;
+        }
+
+        size_t convertHex(char buf[], uintptr_t value)
+        {
+          uintptr_t i = value;
+          char* p = buf;
+
+          do
+          {
+            int lsd = static_cast<int>(i % 16);
+            i /= 16;
+            *p++ = digitsHex[lsd];
+          } while (i != 0);
+
+          *p = '\0';
+          std::reverse(buf, p);
+          return p - buf;
+        }
+
+        template<typename T>
+        Stream& fmt(T data)
+        {
+          static_assert(std::is_integral<T>::value, "integer is required");
+          size_t res = this->convert(fmt_buf_, data);
+          buffer_.append(fmt_buf_, res);
+          return *this;
+        }
+
+        Stream& append(const char* fmt, double data)
+        {
+          fmt_len_ = snprintf(fmt_buf_, sizeof(fmt_buf_), fmt, data);
+          buffer_.append(fmt_buf_, fmt_len_);
+          return *this;
+        }
+    };
+
+    using StreamBuffer = Stream<4096>;
+
     class LoggerBackend
     {
       public:
@@ -467,9 +692,9 @@ namespace nm
           {
             create_logger(path, prefix, interval, is_sync);
             if(is_sync)
-              writer_ = [this](std::stringstream& ss) { sync_write(ss); };
+              writer_ = [this](StreamBuffer& ss) { sync_write(ss); };
             else
-              writer_ = [this](std::stringstream& ss) { async_write(ss); };
+              writer_ = [this](StreamBuffer& ss) { async_write(ss); };
           });
         }
 
@@ -478,7 +703,7 @@ namespace nm
           return ok_;
         }
 
-        void consume(std::stringstream& ss)
+        void consume(StreamBuffer& ss)
         {
           writer_(ss);
         }
@@ -488,15 +713,15 @@ namespace nm
         std::unique_ptr <FileLog> log_;
         Ptr backgroud_;
         bool ok_{true};
-        std::function<void(std::stringstream & )> writer_;
+        std::function<void(StreamBuffer & )> writer_;
         std::once_flag once_;
 
-        void sync_write(std::stringstream& ss)
+        void sync_write(StreamBuffer& ss)
         {
           log_->write(ss.str());
         }
 
-        void async_write(std::stringstream& ss)
+        void async_write(StreamBuffer& ss)
         {
           mpsc_.first.send(ss.str());
         }
@@ -612,6 +837,16 @@ namespace nm
           ss_ << '`' << func << "` ";
       }
 
+      // string literal goes here, and string sequence too,
+      // but string sequence without line terminator(i.e. '\0')
+      // may cause unexpected result.
+      template<size_t LEN> Logger& operator<< (const char (&a)[LEN])
+      {
+        ss_.append(a, LEN - 1);
+        return *this;
+      }
+
+      // non string literal and others.
       template<typename T> Logger& operator<< (const T& data)
       {
         ss_ << data;
@@ -622,7 +857,7 @@ namespace nm
       {
         ss_ << '\n';
         backend_.consume(ss_);
-        ss_.str("");
+        ss_.clear();
       }
 
       Logger(const Logger&) = delete;
@@ -631,18 +866,18 @@ namespace nm
       Logger& operator= (Logger&&) = delete;
 
     private:
-      thread_local static std::stringstream ss_;
+      thread_local static meta::StreamBuffer ss_;
       static meta::LoggerBackend backend_;
       static const char* MSG[];
+      static bool disable_log_;
 
       int get_tid()
       {
         return static_cast<int>(syscall(SYS_gettid));
       }
-      static bool disable_log_;
   };
 
-  thread_local std::stringstream Logger::ss_{""};
+  thread_local meta::StreamBuffer Logger::ss_{};
   meta::LoggerBackend Logger::backend_{};
   const char* Logger::MSG[] = {
     " [INFO]  ",
