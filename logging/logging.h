@@ -35,8 +35,7 @@ namespace nm
 
       public:
         Queue()
-          : size_(0),
-            head_(new Node()),
+          : head_(new Node()),
             tail_(head_.load())
         {
           auto tmp = head_.load();
@@ -55,11 +54,6 @@ namespace nm
           }
         }
 
-        bool empty() const
-        {
-          return size_ == 0;
-        }
-
         void push(std::string&& data)
         {
           auto tmp = new Node();
@@ -67,7 +61,6 @@ namespace nm
           tmp->next.store(nullptr, std::memory_order_relaxed);
           auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
           old_head->next.store(tmp, std::memory_order_release);
-          size_ += 1;
         }
 
         bool try_pop(std::string& data)
@@ -78,12 +71,10 @@ namespace nm
           data = std::move(next->data);
           delete tail_;
           tail_ = next;
-          size_ -= 1;
           return true;
         }
 
       private:
-        std::atomic<size_t> size_;
         std::atomic<Node*> head_;
         Node* tail_;
     };
@@ -122,39 +113,33 @@ namespace nm
           return queue_.try_pop(data);
         }
 
-        void recv(std::string& data)
+        bool recv(std::string& data)
         {
-          for(;switcher_;)
+          if(!switcher_)
+            return false;
+          if(!queue_.try_pop(data))
           {
-            if(!state_)
-            {
-              std::unique_lock<std::mutex> lk(mtx_);
-              cond_.wait(lk, [this] {
-                return !switcher_ || !queue_.empty();
-              });
-            }
-            if(queue_.try_pop(data))
-            {
-              state_ = true;
-              break;
-            }
             state_ = false;
+            std::unique_lock<std::mutex> lk(mtx_);
+            cond_.wait(lk, [this, &data] {
+              return !switcher_ || queue_.try_pop(data);
+            });
           }
+          else
+          {
+            state_ = true;
+          }
+          return true;
         }
 
         void signal()
         {
           // modify the shared variable must under the mutex in order to correctly
           // publish the modification to the waiting thread, Even if the shared
-          // variable is atomic
+          // variable is atomic.
           std::lock_guard<std::mutex> lg(mtx_);
           switcher_ = false;
           cond_.notify_one();
-        }
-
-        bool is_working()
-        {
-          return switcher_;
         }
 
       private:
@@ -217,9 +202,9 @@ namespace nm
 
         ~Receiver() = default;
 
-        void recv(std::string& data)
+        bool recv(std::string& data)
         {
-          recv_->recv(data);
+          return recv_->recv(data);
         }
 
         bool try_recv(std::string& data)
@@ -230,11 +215,6 @@ namespace nm
         void signal()
         {
           recv_->signal();
-        }
-
-        bool is_working()
-        {
-          return recv_->is_working();
         }
 
       private:
@@ -284,9 +264,9 @@ namespace nm
             path_ += prefix + "_";
         }
 
-        FileLog(Receiver& recv)
+        FileLog(Receiver& recv, FILE* fp)
           : rcv_(recv), path_(), interval_(-1), count_(now()),
-            time_cache_(count_), last_roll_(count_), fp_(stderr)
+            time_cache_(count_), last_roll_(count_), fp_(fp)
         {}
 
         ~FileLog()
@@ -312,6 +292,7 @@ namespace nm
               return false;
             }
             this->link();
+            setbuffer(fp_, buffer_, sizeof(buffer_));
           }
           return true;
         }
@@ -325,13 +306,14 @@ namespace nm
 
         void write()
         {
-          while(rcv_.is_working())
+          while(rcv_.recv(data_))
           {
-            rcv_.recv(data_);
             roll();
           }
           while(rcv_.try_recv(data_))
+          {
             roll();
+          }
         }
 
       private:
@@ -346,6 +328,8 @@ namespace nm
         FILE* fp_;
         std::string name_cache_;
         std::string current_log_;
+        std::string data_{};
+        char buffer_[64 * 1024];
         char time_buf_[25];
         char pid_buf_[10];
         timeval tv_;
@@ -387,9 +371,6 @@ namespace nm
           name_cache_.append("_").append(pid_buf_).append(".log");
           return name_cache_;
         }
-
-      protected:
-        std::string data_;
 
         void roll()
         {
@@ -441,6 +422,7 @@ namespace nm
               fclose(fp_);
               this->link();
               fp_ = tmp;
+              setbuffer(fp_, buffer_, sizeof(buffer_));
             }
           }
         }
@@ -674,23 +656,25 @@ namespace nm
     class LoggerBackend
     {
       public:
-        using Ptr = std::unique_ptr<std::thread, std::function<void(std::thread*)>>;
-
         LoggerBackend()
-          : mpsc_(channel()), log_(nullptr), backgroud_(nullptr)
+          : mpsc_(channel()), log_(nullptr), tid_()
         {}
 
-        ~LoggerBackend() = default;
+        ~LoggerBackend()
+        {
+          this->join();
+        }
         LoggerBackend(const LoggerBackend&) = delete;
         LoggerBackend(LoggerBackend&&) = delete;
         LoggerBackend& operator= (const LoggerBackend&) = delete;
         LoggerBackend& operator= (LoggerBackend&&) = delete;
 
-        void init(const char* path, const char* prefix, long interval, bool is_sync)
+        void init(FILE* fp, const char* path, const char* prefix,
+                  long interval, bool is_sync)
         {
           std::call_once(once_, [&, this]
           {
-            create_logger(path, prefix, interval, is_sync);
+            create_logger(fp, path, prefix, interval, is_sync);
             if(is_sync)
               writer_ = [this](StreamBuffer& ss) { sync_write(ss); };
             else
@@ -708,10 +692,19 @@ namespace nm
           writer_(ss);
         }
 
+        void join()
+        {
+          if(tid_.joinable())
+          {
+            mpsc_.second.signal();
+            try { tid_.join(); } catch(const std::system_error&) {}
+          }
+        }
+
       private:
-        std::pair <Sender, Receiver> mpsc_;
+        std::pair<Sender, Receiver> mpsc_;
         std::unique_ptr <FileLog> log_;
-        Ptr backgroud_;
+        std::thread tid_;
         bool ok_{true};
         std::function<void(StreamBuffer & )> writer_;
         std::once_flag once_;
@@ -726,8 +719,8 @@ namespace nm
           mpsc_.first.send(ss.str());
         }
 
-        void create_logger(const char* path, const char* prefix, long interval,
-                           bool is_sync)
+        void create_logger(FILE* fp, const char* path, const char* prefix,
+                           long interval, bool is_sync)
         {
           if(path == nullptr)
             path = "";
@@ -737,21 +730,22 @@ namespace nm
           std::string env;
           if(res != nullptr)
             env = res;
-          bool is_stdout = (env == "stdout");
+          bool is_stdout = (env == "custom") && fp != nullptr;
           if(is_sync)
-            log_sync(path, prefix, interval, is_stdout);
+            log_sync(fp, path, prefix, interval, is_stdout);
           else
-            log_async(path, prefix, interval, is_stdout);
+            log_async(fp, path, prefix, interval, is_stdout);
         }
 
-        void log_sync(const char* path, const char* prefix, long interval,
-                      bool is_stdout)
+        void log_sync(FILE* fp, const char* path, const char* prefix,
+                      long interval, bool is_stdout)
         {
           if(is_stdout)
           {
-            log_.reset(new FileLog(mpsc_.second));
+            log_.reset(new FileLog(mpsc_.second, fp));
             log_->init();
-          } else
+          }
+          else
           {
             log_.reset(new FileLog(mpsc_.second, path, prefix, interval));
             if(!log_->init())
@@ -762,20 +756,16 @@ namespace nm
           }
         }
 
-        void log_async(const char* path, const char* prefix, long interval,
-                       bool is_stdout)
+        void log_async(FILE* fp, const char* path, const char* prefix,
+                       long interval, bool is_stdout)
         {
           auto& rx = mpsc_.second;
           if(is_stdout)
           {
-            log_.reset(new FileLog(rx));
+            log_.reset(new FileLog(rx, fp));
             log_->init();
-            backgroud_ = Ptr(new std::thread([this] {
-                log_->write();
-              }), [&rx](std::thread* tid) {
-                rx.signal();
-                try { tid->join(); } catch(const std::system_error&) {}
-                delete tid;
+            tid_ = std::thread([this] {
+              log_->write();
             });
           }
           else
@@ -786,12 +776,8 @@ namespace nm
               ok_ = false;
               return;
             }
-            backgroud_ = Ptr(new std::thread([this] {
-                log_->write();
-              }), [&rx](std::thread* tid) {
-                rx.signal();
-                try { tid->join(); } catch(const std::system_error&) {}
-                delete tid;
+            tid_ = std::thread([this] {
+              log_->write();
             });
           }
         }
@@ -810,24 +796,27 @@ namespace nm
       };
       enum Level { INFO = 0, WARNING, DEBUG, ERR, FATAL };
       // default interval is 24hr in seconds, minimum duration is 1s.
-      static bool create_async(const char* path = "",
+      static bool create_async(FILE* fp = stderr, const char* path = "",
                                const char* prefix = "",
                                long interval = 60 * 60 * 24)
       {
         if(disable_log_)
           return true;
-        backend_.init(path, prefix, interval, false);
+        backend_.init(fp, path, prefix, interval, false);
         return backend_.ok();
       }
-      static bool create_sync(const char* path = "",
+      static bool create_sync(FILE* fp = stderr, const char* path = "",
                               const char* prefix = "",
                               long interval = 60 * 60 * 24)
       {
         if(disable_log_)
           return true;
-        backend_.init(path, prefix, interval, true);
+        backend_.init(fp, path, prefix, interval, true);
         return backend_.ok();
       }
+
+      // manually wait async operations complete.
+      static void join() { backend_.join(); }
 
       Logger(const char* file, long line, const char* func, Level level)
       {

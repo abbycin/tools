@@ -19,7 +19,7 @@ int main(int argc, char* argv[])
   const char* prefix = argc > 2 ? argv[2] : "";
   const long interval = argc > 3 ? std::stol(argv[3]) : 1000'000 * 10;
 
-  if(!Logger::create_async(path, prefix, interval))
+  if(!Logger::create_async(stderr, path, prefix, interval))
     return 1;
 
   vector<thread> tg;
