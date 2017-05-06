@@ -20,9 +20,9 @@ namespace nm
   {
       using Base = std::string;
       using std::string::const_iterator;
-      struct null_t {};
+      //struct null_t {};
     public:
-      constexpr static null_t null{};
+      //constexpr static null_t null{};
       string_ext()
         : Base()
       {}
@@ -288,12 +288,8 @@ namespace nm
       class Parser
       {
         public:
-          template<typename T>
-          Parser(T* x)
-            : arg_(x), parser_([](const string_ext&, void*) {})
-          {}
-          Parser(void*) = delete;
-          Parser(null_t)
+          explicit Parser(void*) = delete;
+          explicit Parser(nullptr_t)
             : arg_(nullptr), parser_([](const string_ext&, void*) {})
           {}
 

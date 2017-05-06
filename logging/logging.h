@@ -15,10 +15,38 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
+#include <stdlib.h>
 #include <sys/time.h>
+#ifndef __linux__
+#include <sys/syscall.h>
+#else
 #include <syscall.h>
+#endif
+#ifdef __FreeBSD__
+#include <sys/thr.h>
+#endif
 #include <unistd.h>
+
+#ifndef __linux__
+
+#define fwrite_unlocked fwrite
+#define fflush_unlocked fflush
+
+const char* basename(const char* name)
+{
+  if(name == nullptr)
+    return nullptr;
+  const char* p = name;
+  while(*name)
+  {
+    if(*name++ == '/')
+      p = name;
+  }
+  return p;
+}
+#endif
 
 namespace nm
 {
@@ -81,7 +109,7 @@ namespace nm
 
     class Sender;
     class Receiver;
-    std::pair<Sender, Receiver> channel();
+    class LoggerBackend;
 
     class ReceiverImpl
     {
@@ -89,7 +117,7 @@ namespace nm
         ReceiverImpl() = default;
 
       public:
-        friend std::pair<Sender, Receiver> channel();
+        friend LoggerBackend;
 
         ReceiverImpl(const ReceiverImpl&) = delete;
 
@@ -153,7 +181,7 @@ namespace nm
     class Sender
     {
       public:
-        friend std::pair<Sender, Receiver> channel();
+        friend LoggerBackend;
 
         Sender(Sender&& rhs)
         {
@@ -189,7 +217,7 @@ namespace nm
     class Receiver
     {
       public:
-        friend std::pair<Sender, Receiver> channel();
+        friend LoggerBackend;
 
         Receiver(Receiver&& rhs)
         {
@@ -233,13 +261,6 @@ namespace nm
 
         std::shared_ptr<ReceiverImpl> recv_;
     };
-
-    std::pair<Sender, Receiver> channel()
-    {
-      Receiver receiver(new ReceiverImpl());
-      Sender sender(receiver.get());
-      return {std::move(sender), std::move(receiver)};
-    }
 
     class FileLog
     {
@@ -657,7 +678,7 @@ namespace nm
     {
       public:
         LoggerBackend()
-          : mpsc_(channel()), log_(nullptr), tid_()
+          : rcv_(new ReceiverImpl()), snd_(rcv_.get()), log_(nullptr), tid_()
         {}
 
         ~LoggerBackend()
@@ -696,13 +717,14 @@ namespace nm
         {
           if(tid_.joinable())
           {
-            mpsc_.second.signal();
+            rcv_.signal();
             try { tid_.join(); } catch(const std::system_error&) {}
           }
         }
 
       private:
-        std::pair<Sender, Receiver> mpsc_;
+        Receiver rcv_;
+        Sender snd_;
         std::unique_ptr <FileLog> log_;
         std::thread tid_;
         bool ok_{true};
@@ -716,7 +738,7 @@ namespace nm
 
         void async_write(StreamBuffer& ss)
         {
-          mpsc_.first.send(ss.str());
+          snd_.send(ss.str());
         }
 
         void create_logger(FILE* fp, const char* path, const char* prefix,
@@ -742,12 +764,12 @@ namespace nm
         {
           if(is_stdout)
           {
-            log_.reset(new FileLog(mpsc_.second, fp));
+            log_.reset(new FileLog(rcv_, fp));
             log_->init();
           }
           else
           {
-            log_.reset(new FileLog(mpsc_.second, path, prefix, interval));
+            log_.reset(new FileLog(rcv_, path, prefix, interval));
             if(!log_->init())
             {
               ok_ = false;
@@ -759,10 +781,9 @@ namespace nm
         void log_async(FILE* fp, const char* path, const char* prefix,
                        long interval, bool is_stdout)
         {
-          auto& rx = mpsc_.second;
           if(is_stdout)
           {
-            log_.reset(new FileLog(rx, fp));
+            log_.reset(new FileLog(rcv_, fp));
             log_->init();
             tid_ = std::thread([this] {
               log_->write();
@@ -770,7 +791,7 @@ namespace nm
           }
           else
           {
-            log_.reset(new FileLog(rx, path, prefix, interval));
+            log_.reset(new FileLog(rcv_, path, prefix, interval));
             if(!log_->init())
             {
               ok_ = false;
@@ -787,6 +808,12 @@ namespace nm
 
 namespace nm
 {
+#undef disable_log_
+#ifndef NOLOG
+#define disable_log_ false
+#else
+#define disable_log_ true
+#endif
   class Logger
   {
     public:
@@ -855,41 +882,42 @@ namespace nm
       Logger& operator= (Logger&&) = delete;
 
     private:
-      thread_local static meta::StreamBuffer ss_;
-      static meta::LoggerBackend backend_;
-      static const char* MSG[];
-      static bool disable_log_;
+      thread_local inline static meta::StreamBuffer ss_{};
+      static inline meta::LoggerBackend backend_{};
+      static inline const char* MSG[] = {
+        " [INFO]  ",
+        " [WARN]  ",
+        " [DEBUG] ",
+        " [ERROR] ",
+        " [FATAL] "
+      };
 
       int get_tid()
       {
+#ifdef __APPLE__
+        return static_cast<int>(syscall(SYS_thread_selfid));
+#elif defined(__FreeBSD__)
+        long res = 0;
+        thr_self(&res);
+        return static_cast<int>(res);
+#else
         return static_cast<int>(syscall(SYS_gettid));
+#endif
       }
   };
 
-  thread_local meta::StreamBuffer Logger::ss_{};
-  meta::LoggerBackend Logger::backend_{};
-  const char* Logger::MSG[] = {
-    " [INFO]  ",
-    " [WARN]  ",
-    " [DEBUG] ",
-    " [ERROR] ",
-    " [FATAL] "
-  };
-
 #ifndef NOLOG
-  bool Logger::disable_log_ = false;
-  #define LOG_INFO nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::INFO)
-  #define LOG_WARN nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::WARNING)
-  #define LOG_DEBUG nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::DEBUG)
-  #define LOG_ERR nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::ERR)
-  #define LOG_FATAL nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::FATAL)
+  #define log_info() nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::INFO)
+  #define log_warn() nm::Logger(__FILE__, __LINE__, nullptr, nm::Logger::WARNING)
+  #define log_debug() nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::DEBUG)
+  #define log_err() nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::ERR)
+  #define log_fatal() nm::Logger(__FILE__, __LINE__, __func__, nm::Logger::FATAL)
 #else
-  bool Logger::disable_log_ = true;
-  #define LOG_INFO nm::Logger::Dummy()
-  #define LOG_WARN LOG_INFO
-  #define LOG_DEBUG LOG_INFO
-  #define LOG_ERR LOG_INFO
-  #define LOG_FATAL LOG_INFO
+  #define log_info() nm::Logger::Dummy()
+  #define log_warn() log_info()
+  #define log_debug() log_info()
+  #define log_err() log_info()
+  #define log_fatal() log_info()
 #endif
 }
 

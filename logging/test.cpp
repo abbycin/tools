@@ -28,11 +28,11 @@ int main(int argc, char* argv[])
     tg.emplace_back([] {
       for(int j = 0; j < 200; ++j)
       {
-        LOG_INFO << "test info " << 233 << " "<< true;
-        LOG_WARN << "test warning " << 233 << " " << false;
-        LOG_DEBUG << "test debug " << -1 << " "<< true;
-        LOG_ERR << "test error " << &j << " "<< true;
-        LOG_FATAL << "test +1s " << 233 << " "<< false;
+        log_info() << "test info " << 233 << " "<< true;
+        log_warn() << "test warning " << 233 << " " << false;
+        log_debug() << "test debug " << -1 << " "<< true;
+        log_err() << "test error " << &j << " "<< true;
+        log_fatal() << "test +1s " << 233 << " "<< false;
       }
     });
   }

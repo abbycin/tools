@@ -97,8 +97,12 @@ int main(int argc, char* argv[])
   regex re2{R"del(([a-z]{1,}).+?(\d{1,3})\.(\d{1,3})\.(.+?)\.(\d{1,3})\.(\d{1,3}))del"};
   int _1st, _2nd, _3rd, _4th;
   string str;
+
   // skip `wtf`
-  if(alnum.extract(re2, &str, &_1st, &_2nd, string_ext::null, &_3rd, &_4th))
+  // no zuo no die.
+  // if(alnum.extract(re2, &str, &_1st, &_2nd, (string*)0, &_3rd, &_4th))
+  // you should try these
+  if(alnum.extract(re2, &str, &_1st, &_2nd, nullptr, &_3rd, &_4th))
     cout << str << ": " << _1st << "." << _2nd << "." << _3rd << "." << _4th << endl;
   else
     cout << "can't extract!\n";
