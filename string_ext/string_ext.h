@@ -289,7 +289,7 @@ namespace nm
       {
         public:
           explicit Parser(void*) = delete;
-          explicit Parser(nullptr_t)
+          explicit Parser(std::nullptr_t)
             : arg_(nullptr), parser_([](const string_ext&, void*) {})
           {}
 

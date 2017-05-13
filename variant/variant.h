@@ -1,161 +1,161 @@
 /*********************************************************
-          File Name: fakevariant.h
+          File Name: variant.h
           Author: Abby Cin
           Mail: abbytsing@gmail.com
-          Created Time: Mon 21 Nov 2016 09:32:37 PM CST
+          Created Time: Sat 13 May 2017 09:13:27 AM CST
 **********************************************************/
 
-#ifndef VARIANT_H_
-#define VARIANT_H_
+#ifndef VARIANT_H__
+#define VARIANT_H__
 
-#include <functional>
+#include <stdexcept>
+#include <type_traits>
 
 namespace nm
 {
   namespace meta
   {
-    struct Nil {};
-
-    template<typename T, typename U>
-    struct TypeList
+    // size less than
+    template<typename T, typename U> struct size_lt
     {
-      using Head = T;
-      using Tail = U;
+      constexpr static bool value = sizeof(T) < sizeof(U);
     };
 
-    template<typename... Args> struct GenList;
-    template<> struct GenList<Nil>
+    // size greater than
+    template<typename T, typename U> struct size_gt
     {
-      using type = Nil; 
-    };
-    template<typename T>
-    struct GenList<T>
-    {
-      using type = TypeList<T, Nil>;
-    };
-    template<typename... Args>
-    struct GenList<Nil, Args...> // ignore `Nil` in Args
-    {
-      using type = typename GenList<Args...>::type;
-    };
-    template<typename T, typename... Args>
-    struct GenList<T, Args...>
-    {
-      using type = TypeList<T, typename GenList<Args...>::type>;
+      constexpr static bool value = sizeof(T) > sizeof(U);
     };
 
-    template<typename, typename> struct Remove;
-    template<typename T>
-    struct Remove<Nil, T>
+    template<template<typename, typename> class, typename, typename...> struct type_size;
+    template<template<typename, typename> class Op, typename T> struct type_size<Op, T>
     {
-      using type = Nil;
-    };
-    template<typename Tail, typename T>
-    struct Remove<TypeList<T, Tail>, T>
-    {
-      using type = Tail;
-    };
-    template<typename Head, typename Tail, typename T>
-    struct Remove<TypeList<Head, Tail>, T>
-    {
-      using type = TypeList<Head, typename Remove<Tail, T>::type>;
+      constexpr static size_t value = sizeof(T);
     };
 
-    template<typename> struct Unique;
-    template<> struct Unique<Nil>
+    template<template<typename, typename> class Op, typename T, typename U, typename... Rest>
+    struct type_size<Op, T, U, Rest...>
     {
-      using type = Nil;
+      constexpr static size_t value = Op<T, U>::value
+                                      ? type_size<Op, T, Rest...>::value
+                                      : type_size<Op, U, Rest...>::value;
     };
-    template<typename Head, typename Tail>
-    struct Unique<TypeList<Head, Tail>>
+
+    template<size_t _1, size_t...> struct max_size_of;
+    template<size_t _1> struct max_size_of<_1>
+    {
+      constexpr static size_t value = _1;
+    };
+    template<size_t _1, size_t _2, size_t... Rest>
+    struct max_size_of<_1, _2, Rest...>
+    {
+      constexpr static size_t value = _1 > _2 ? max_size_of<_1, Rest...>::value
+                                              : max_size_of<_2, Rest...>::value;
+    };
+
+    template<typename T, typename... Types> struct is_in;
+    template<typename T> struct is_in<T>
+    {
+      constexpr static bool value = false;
+    };
+    template<typename T, typename _1ST, typename... Rest>
+    struct is_in<T, _1ST, Rest...>
     {
       private:
-        using tmp = typename Unique<Tail>::type;
-        using tail = typename Remove<tmp, Head>::type;
+        constexpr static bool tmp = std::is_same<T, _1ST>::value;
       public:
-        using type = TypeList<Head, tail>;
+        constexpr static bool value = tmp ? tmp : is_in<T, Rest...>::value;
     };
 
-    template<typename TL, template<typename> class Class> class GenClasses;
+    template<typename, typename...> struct index_of_type;
+    template<typename T> struct index_of_type<T>
+    {
+      constexpr static int value = 0;
+    };
+    template<typename T, typename U, typename... Rest> struct index_of_type<T, U, Rest...>
+    {
+      private:
+        constexpr static bool tmp = std::is_same<T, U>::value;
+      public:
+        constexpr static int value = tmp ? 0 : 1 + index_of_type<T, Rest...>::value;
+    };
 
-    template<typename T1, typename T2, template<typename> class Class>
-    class GenClasses<TypeList<T1, T2>, Class> : public GenClasses<T1, Class>,
-          public GenClasses<T2, Class>
-    {};
-
-    template<typename T, template<typename> class Class>
-    class GenClasses : public Class<T>
-    {};
-
-    template<template<typename> class Class>
-    class GenClasses<Nil, Class>
-    {};
-    
+    template<typename...> struct variant_helper;
+    template<> struct variant_helper<>
+    {
+      static void clear(int, void*) {}
+    };
+    template<typename T, typename... R> struct variant_helper<T, R...>
+    {
+      static void clear(int index, void* data)
+      {
+        if(index > 0)
+        {
+          index -= 1;
+          variant_helper<R...>::clear(index, data);
+        }
+        else if(index == 0)
+        {
+          if(!std::is_pod<T>::value)
+          {
+            reinterpret_cast<T*>(data)->~T();
+          }
+        }
+      }
+    };
   }
 
-  template<typename U, typename... Args>
-  class FakeVariant
+  // save type identity
+  template<typename... Rest>
+  class variant
+  {
+      using helper = meta::variant_helper<Rest...>;
+    public:
+      variant() : type_index_(-1) {}
+      ~variant()
+      {
+        helper::clear(type_index_, &data_);
+      }
+
+      template<typename T> variant(const T& rhs)
+      {
+        static_assert(meta::is_in<T, Rest...>::value, "invalid type");
+        new(static_cast<void*>(&data_)) T(rhs);
+        type_index_ = meta::index_of_type<T, Rest...>::value;
+      }
+
+      template<typename T> void set(const T& rhs)
+      {
+        static_assert(meta::is_in<T, Rest...>::value, "invalid type");
+        helper::clear(type_index_, &data_);
+        new(static_cast<void*>(&data_)) T(rhs);
+        type_index_ = meta::index_of_type<T, Rest...>::value;
+      }
+
+      template<typename T> T& get()
+      {
+        static_assert(meta::is_in<T, Rest...>::value, "invalid type");
+        if(type_index_ < 0)
+          throw std::runtime_error("bad get on an empty variant");
+        int tmp = meta::index_of_type<T, Rest...>::value;
+        if(type_index_ != tmp)
+          throw std::runtime_error("get type miss match set type");
+        return *reinterpret_cast<T*>(&data_);
+      }
+
+    private:
+      // or meta::max_size_of<sizeof(Rest)...>::value;
+      int type_index_;
+      typename std::aligned_storage<meta::type_size<meta::size_gt, Rest...>::value,
+        meta::max_size_of<alignof(Rest)...>::value>::type data_;
+  };
+
+  // forbid `variant<> foo`
+  template<> class variant<>
   {
     public:
-      template<typename T> bool set(const T& value)
-      {
-        return data_.invisible<T>::set(value);
-      }
-      template<typename T, typename... Paras>
-      bool set(Paras&&... paras)
-      {
-        return data_.invisible<T>::set(std::forward<Paras>(paras)...);
-      }
-      template<typename T> const T& get() const
-      {
-        return data_.invisible<T>::get();
-      }
-      template<typename T> bool valid() const
-      {
-        return data_.invisible<T>::valid();
-      }
-    private:
-      template<typename T>
-      class invisible
-      {
-        public:
-          invisible()
-            : value_{nullptr}
-          {}
-          ~invisible()
-          {
-            clear();
-          }
-          template<typename... Paras>
-          bool set(Paras&&... paras)
-          {
-            bool res = valid();
-            clear();
-            value_ = new T(std::forward<Paras>(paras)...);
-            return !res;
-          }
-          const T& get() const
-          {
-            return *value_;
-          }
-          bool valid() const
-          {
-            return value_ != nullptr;
-          }
-        private:
-          T* value_;
-          void clear()
-          {
-            if(valid())
-            {
-              delete value_;
-              value_ = nullptr;
-            }
-          }
-      };
-      meta::GenClasses<typename meta::Unique<typename meta::GenList<U, Args...>
-        ::type>::type, invisible> data_;
+      ~variant() = delete;
   };
 }
 
-#endif
+#endif // VARIANT_H__
