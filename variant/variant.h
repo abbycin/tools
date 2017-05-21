@@ -9,6 +9,7 @@
 #define VARIANT_H__
 
 #include <cstring>
+#include <functional>
 #include <stdexcept>
 #include <type_traits>
 
@@ -227,12 +228,84 @@ namespace nm
     };
     template<> struct variant_assign<void, void> {};
 
+    template<typename F, typename Arg>
+    struct is_type_match
+    {
+      private:
+        template<typename Func> struct extract;
+
+        template<typename R, typename A>
+        struct extract<R(A)>
+        {
+          using ires = R;
+          using iarg = A;
+        };
+
+        template<typename R, typename A>
+        struct extract<R(*)(A)> : public extract<R(A)> {};
+
+        template<typename R, typename A>
+        struct extract<std::function<R(A)>> : public extract<R(A)> {};
+
+        template<typename R, typename Class, typename A>
+        struct extract<R(Class::*)(A)> : public extract<R(A)> {};
+
+        template<typename R, typename Class, typename A>
+        struct extract<R(Class::*)(A) const> : public extract<R(A)> {};
+
+        template<typename R, typename Class, typename A>
+        struct extract<R(Class::*)(A) volatile> : public extract<R(A)> {};
+
+        template<typename R, typename Class, typename A>
+        struct extract<R(Class::*)(A) const volatile> : public extract<R(A)> {};
+
+        template<typename lambda>
+        struct extract : public extract<decltype(&lambda::operator())> {};
+
+        template<typename lambda>
+        struct extract<lambda&&> : public extract<decltype(&lambda::operator())> {};
+      public:
+        using arg = Arg;
+        using tmp = extract<F>;
+        using iarg = typename tmp::iarg;
+        constexpr static bool arg_same = std::is_same<arg, iarg>::value;
+    };
+
+    template<bool ok>
+    struct variant_call_wrapper
+    {
+      template<typename Type, typename F> static void invoke(Type& arg, F&& f)
+      {
+        f(arg);
+      }
+    };
+    template<> struct variant_call_wrapper<false>
+    {
+      template<typename Type, typename F> static void invoke(Type&, F&&) {}
+    };
+
+    struct variant_call
+    {
+      template<typename Type> static void invoke(Type&) {}
+      template<typename Type, typename F> static void invoke(Type& arg, F&& f)
+      {
+        variant_call_wrapper<is_type_match<decltype(f), Type>::arg_same>::invoke(arg, f);
+      }
+      template<typename Type, typename Fn, typename... Fns> static void invoke(Type& arg, Fn&& f, Fns&&... fs)
+      {
+        invoke<Type>(arg, std::forward<Fn>(f));
+        invoke<Type>(arg, std::forward<Fns>(fs)...);
+      }
+    };
+
     template<typename...> struct variant_helper;
     template<> struct variant_helper<>
     {
       static void clear(int, void*) {}
       static void copy(int, void*, const void*, size_t) {}
       static void move(int, void*, void*, size_t) {}
+      template<typename... Fn>
+      static void call(int, void*, Fn&&... fs) {}
     };
     template<typename T, typename... R> struct variant_helper<T, R...>
     {
@@ -294,6 +367,19 @@ namespace nm
                           "type is not move constructible");
             new(lhs) T(std::move(*static_cast<T*>(rhs)));
           }
+        }
+      }
+
+      template<typename... Fn> static void call(int index, void* data, Fn&&... f)
+      {
+        if(index > 0)
+        {
+          index -= 1;
+          variant_helper<R...>::call(index, data, std::forward<Fn>(f)...);
+        }
+        else
+        {
+          variant_call::invoke<T, Fn...>(*static_cast<T*>(data), std::forward<Fn>(f)...);
         }
       }
     };
@@ -492,6 +578,11 @@ namespace nm
         if(type_index_ != tmp)
           throw std::runtime_error("get type mismatch set type");
         return *reinterpret_cast<T*>(&data_);
+      }
+
+      template<typename F, typename... Fs> void call(F&& func, Fs&&...funcs)
+      {
+        helper::call(type_index_, &data_, std::forward<F>(func), std::forward<Fs>(funcs)...);
       }
 
       void clear()

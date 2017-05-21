@@ -71,4 +71,13 @@ int main()
   vx = 233;
   vx = s;
   cout << s.size() << '\n'; cout << vx.get<std::string>() << '\n';
+  // test call
+  variant<int, float, std::string, const char*> vc = 2.33;
+  vc.call([](int x) { printf("int = %d\n", x); },
+          [](float x) { printf("float = %f\n", x); },
+          [](std::string x) { printf("string = %s\n", x.c_str()); },
+          [](const char* x) { printf("const char* = %s\n", x); });
+  vc = "maybe string";
+  vc.call([](std::string x) { printf("string = %s\n", x.c_str()); });
+  vc.call([](const double) { printf("never print\n"); });
 }
