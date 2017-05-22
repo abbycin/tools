@@ -44,6 +44,20 @@ variant<std::string> make_variant()
   return variant<std::string>{std::string{"test move"}};
 }
 
+struct Operation
+{
+  size_t operator() (size_t x) { cout << "size_t = "; return x; }
+  size_t operator() (string x) { cout << "string.length = "; return x.size(); }
+  double operator() (double x) { cout << "double = ";  return x; }
+};
+
+struct Operation2 : public variant_visitor<string>
+{
+  string operator() (size_t x) { cout << "int = "; return to_string(x); }
+  string operator() (const string& x) { cout << "string = ";  return x; }
+  string operator() (double x) { cout << "double = "; return to_string(x); }
+};
+
 int main()
 {
   variant<bar, int, foo, std::string, double> va{bar()};
@@ -78,6 +92,27 @@ int main()
           [](std::string x) { printf("string = %s\n", x.c_str()); },
           [](const char* x) { printf("const char* = %s\n", x); });
   vc = "maybe string";
-  vc.call([](std::string x) { printf("string = %s\n", x.c_str()); });
+  auto bar = [](std::string x) { printf("string = %s\n", x.c_str()); };
+  vc.call(bar);
   vc.call([](const double) { printf("never print\n"); });
+  // test apply
+
+  {
+    // user should ensure no conversion happen
+    variant<string, double, size_t> app = 2.33;
+    app.apply<size_t>(Operation{}); // print 'size_t = '
+    cout << '\n';
+  }
+  {
+    variant<string, double, size_t> app;
+    app.emplace<double>(2.33);
+    double res = app.apply<double>(Operation{});
+    cout << res << '\n';
+  }
+  {
+    variant<string, double, size_t> app;
+    app.apply<size_t>(Operation{}); // nothing
+    app = 2.333;
+    cout << app.apply(Operation2{}) << '\n';
+  }
 }

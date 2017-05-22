@@ -263,11 +263,13 @@ namespace nm
         struct extract : public extract<decltype(&lambda::operator())> {};
 
         template<typename lambda>
-        struct extract<lambda&&> : public extract<decltype(&lambda::operator())> {};
+        struct extract<lambda&> : public extract<decltype(&lambda::operator())> {};
+
+        template<typename lambda>
+        struct extract<lambda&&> : public extract<lambda&> {};
       public:
-        using arg = Arg;
-        using tmp = extract<F>;
-        using iarg = typename tmp::iarg;
+        using arg = typename std::remove_cv<typename std::remove_reference<Arg>::type>::type;
+        using iarg = typename std::remove_cv<typename std::remove_reference<typename extract<F>::iarg>::type>::type;
         constexpr static bool arg_same = std::is_same<arg, iarg>::value;
     };
 
@@ -306,6 +308,8 @@ namespace nm
       static void move(int, void*, void*, size_t) {}
       template<typename... Fn>
       static void call(int, void*, Fn&&... fs) {}
+      template<typename Res, typename Obj>
+      static Res apply(int, void*, Obj& obj) { return Res{}; }
     };
     template<typename T, typename... R> struct variant_helper<T, R...>
     {
@@ -377,10 +381,24 @@ namespace nm
           index -= 1;
           variant_helper<R...>::call(index, data, std::forward<Fn>(f)...);
         }
-        else
+        else if(index == 0)
         {
           variant_call::invoke<T, Fn...>(*static_cast<T*>(data), std::forward<Fn>(f)...);
         }
+      }
+
+      template<typename Res, typename Obj> static Res apply(int index, void* data, Obj& obj)
+      {
+        if(index > 0)
+        {
+          index -= 1;
+          return variant_helper<R...>::template apply<Res, Obj>(index, data, obj);
+        }
+        else if(index == 0)
+        {
+          return obj(*static_cast<T*>(data));
+        }
+        return Res{};
       }
     };
   }
@@ -388,6 +406,7 @@ namespace nm
 
 namespace nm
 {
+  template<typename T> struct variant_visitor { using type = T; };
   template<typename... Rest>
   class variant
   {
@@ -541,7 +560,7 @@ namespace nm
       {
         using Type = typename meta::ctor_type<T&, Rest...>::type;
         clear();
-        new(static_cast<void*>(&data_)) typename std::enable_if<not_<std::is_const<Type>>::value, Type>::type(rhs);
+        new(static_cast<void*>(&data_)) Type(rhs);
         update_index<Type>();
       }
 
@@ -549,7 +568,7 @@ namespace nm
       {
         using Type = typename meta::ctor_type<T&, Rest...>::type;
         clear();
-        new(static_cast<void*>(&data_)) typename std::enable_if<not_<std::is_const<Type>>::value, Type>::type(rhs);
+        new(static_cast<void*>(&data_)) Type(rhs);
         update_index<Type>();
       }
 
@@ -557,7 +576,7 @@ namespace nm
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
         clear();
-        new(static_cast<void*>(&data_)) typename std::enable_if<not_<std::is_const<Type>>::value, Type>::type(std::move(rhs));
+        new(static_cast<void*>(&data_)) Type(std::move(rhs));
         update_index<T>();
       }
 
@@ -583,6 +602,16 @@ namespace nm
       template<typename F, typename... Fs> void call(F&& func, Fs&&...funcs)
       {
         helper::call(type_index_, &data_, std::forward<F>(func), std::forward<Fs>(funcs)...);
+      }
+
+      template<typename Obj> typename Obj::type apply(Obj&& obj)
+      {
+        return helper::template apply<typename Obj::type, Obj>(type_index_, &data_, obj);
+      }
+
+      template<typename Res, typename Obj> Res apply(Obj&& obj)
+      {
+        return helper::template apply<Res, Obj>(type_index_, &data_, obj);
       }
 
       void clear()
