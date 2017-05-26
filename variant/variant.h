@@ -91,7 +91,7 @@ namespace nm
     template<typename T> struct is_valid_variant_types<T>
     {
       constexpr static bool value = helper_and<
-        helper_not<std::is_same<T, void>>,
+        helper_not<std::is_void<T>>,
         helper_not<std::is_const<T>>,
         helper_not<std::is_reference<T>>>::value;
     };
@@ -132,6 +132,17 @@ namespace nm
       using type = False;
     };
 
+    template<typename T, typename... Rest> struct is_type_unique;
+    template<typename T> struct is_type_unique<T>
+    {
+      constexpr static bool value = true;
+    };
+    template<typename T, typename... Rest> struct is_type_unique
+    {
+      constexpr static bool tmp = !meta::is_in<T, Rest...>::value;
+      constexpr static bool value = tmp ? is_type_unique<Rest...>::value : tmp;
+    };
+
     template<typename, typename, typename...> struct ctor_type;
     template<typename T, typename U> struct ctor_type<T, U>
     {
@@ -150,94 +161,79 @@ namespace nm
         constexpr static bool value = is_in<Type, U, Rest...>::value;
     };
 
-    template<typename From, typename To,
-      bool ok = std::is_pod<typename std::remove_reference<To>::type>::value>
-    struct is_assignable
+    template<typename T, typename... Rest> struct not_contain_const;
+    template<typename T> struct not_contain_const<T>
     {
-      private:
-        using Raw = typename std::decay<To>::type;
-      public:
-        constexpr static bool value = std::is_assignable<Raw, From>::value;
+      using Type = typename std::remove_reference<T>::type;
+      constexpr static bool value = helper_not<std::is_const<Type>>::value;
+    };
+    template<typename T, typename U, typename... Rest>
+    struct not_contain_const<T, U, Rest...>
+    {
+      constexpr static bool tmp = not_contain_const<T>::value;
+      constexpr static bool value = tmp ? not_contain_const<U, Rest...>::value : tmp;
     };
 
-    template<typename From, typename To> struct is_assignable<From, To, true>
+    template<typename Lhs, typename Rhs> struct is_acceptable
     {
       private:
-        using Rawfrom = typename std::decay<From>::type;
-        using Rawto = typename std::decay<To>::type;
+        using Raw = typename std::remove_reference<Lhs>::type;
+        static std::false_type test(...);
+        static std::true_type test(Raw);
       public:
-        constexpr static bool value = std::is_same<Rawfrom, Rawto>::value;
+        constexpr static bool value = helper_and<helper_not<std::is_const<Raw>>,
+          decltype(test(std::forward<Rhs>(std::declval<Rhs>())))>::value;
     };
 
-    template<typename, typename, typename...> struct assignable_type;
-    template<typename From, typename To>
-    struct assignable_type<From, To>
+    template<typename T, typename U, typename... Rest> struct acceptable_type;
+    template<typename T, typename U> struct acceptable_type<T, U>
+    {
+      using type = typename cond<is_acceptable<U, T>::value, U, T>::type;
+    };
+    template<typename T, typename U, typename... Rest> struct acceptable_type
+    {
+      using type = typename acceptable_type<
+        typename acceptable_type<T, U>::type, Rest...>::type;
+    };
+
+    template<typename T, typename U, typename... Rest> struct is_acceptable_from;
+    template<typename T, typename U> struct is_acceptable_from<T, U>
+    {
+      constexpr static bool value = std::is_same<
+        typename acceptable_type<T, U>::type, U>::value;
+    };
+    template<typename T, typename U, typename... Rest> struct is_acceptable_from
     {
       private:
-        using Rfrom = typename std::decay<From>::type;
-        using Rto = typename std::decay<To>::type;
-        constexpr static bool value = helper_and<
-          is_assignable<From, To>, std::is_convertible<Rfrom, Rto>>::value;
+        using type = typename acceptable_type<T, U, Rest...>::type;
       public:
-        using type = typename cond<value, To, From>::type;
-    };
-    template<typename From, typename To, typename... Rest>
-    struct assignable_type
-    {
-      using type = typename assignable_type<
-        typename assignable_type<From, To>::type, Rest...>::type;
+        constexpr static bool value = helper_and<is_in<type, U, Rest...>,
+          not_contain_const<U, Rest...>>::value;
     };
 
-    template<typename From, typename To, typename... Rest>
-    struct is_assignable_from
-    {
-      private:
-        using type = typename assignable_type<From, To, Rest...>::type;
-      public:
-        constexpr static bool value = is_in<type, To, Rest...>::value;
-    };
-
-    template<typename, typename...> struct index_of_type;
-    template<typename T> struct index_of_type<T>
+    template<typename T, typename... Rest> struct index_of_type_helper;
+    template<typename T> struct index_of_type_helper<T>
     {
       constexpr static int value = 0;
     };
     template<typename T, typename U, typename... Rest>
-    struct index_of_type<T, U, Rest...>
+    struct index_of_type_helper<T, U, Rest...>
     {
       private:
-        constexpr static bool tmp = std::is_same<T, U>::value;
+        constexpr static bool ok = std::is_same<T, U>::value;
       public:
-        constexpr static int value = tmp ?
-                                     0 : 1 + index_of_type<T, Rest...>::value;
+        constexpr static int value = ok ?
+                                     0 :
+                                     1 + index_of_type_helper<T, Rest...>::value;
     };
 
-    template<typename T, typename U, bool = std::is_pod<T>::value>
-    struct variant_assign
+    template<typename T, typename... Rest> struct index_of_type
     {
-      static void assign(void* data, const void* rhs)
-      {
-        *static_cast<T*>(data) = *static_cast<const U*>(rhs);
-      }
-
-      static void move(void *data, void* rhs)
-      {
-        assign(data, rhs);
-      }
+      private:
+        constexpr static int tmp = index_of_type_helper<T, Rest...>::value;
+      public:
+        constexpr static int value = tmp >= sizeof...(Rest) ? -1 : tmp;
     };
-    template<typename T, typename U> struct variant_assign<T, U, false>
-    {
-      static void assign(void* data, const void* rhs)
-      {
-        reinterpret_cast<T*>(data)->operator=(*static_cast<const U*>(rhs));
-      }
-
-      static void move(void* data, void* rhs)
-      {
-        reinterpret_cast<T*>(data)->operator=(std::move(*static_cast<U*>(rhs)));
-      }
-    };
-    template<> struct variant_assign<void, void> {};
 
     template<typename F, typename Arg>
     struct is_type_match
@@ -430,7 +426,9 @@ namespace nm
   class variant
   {
       static_assert(meta::is_valid_variant_types<Rest...>::value,
-                    "invalid variant types");
+                    "invalid variant type(s)");
+      static_assert(meta::is_type_unique<Rest...>::value,
+                    "duplicate type is not allowed");
       using helper = meta::variant_helper<Rest...>;
       template<typename T, typename...Args> using and_ = meta::helper_and<T, Args...>;
       template<typename T, typename...Args> using or_ = meta::helper_or<T, Args...>;
@@ -466,7 +464,7 @@ namespace nm
         : variant()
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
-        data_.template construct<Type>(std::move(rhs));
+        data_.template construct<Type>(std::forward<Type>(rhs));
         update_index<Type>();
       }
 
@@ -488,50 +486,41 @@ namespace nm
         move_construct(rhs);
       }
 
-      template<typename T> variant& operator= (const T& rhs)
+      template<typename T, typename std::enable_if<
+        meta::is_acceptable_from<const T&, Rest...>::value
+      >::type* = nullptr> variant& operator= (const T& rhs)
       {
-        using AT = typename meta::assignable_type<const T&, Rest...>::type;
-        using Type = typename std::enable_if<
-          meta::is_assignable_from<const T&, Rest...>::value, AT>::type;
-        int tmp = meta::index_of_type<AT, Rest...>::value;
+        using Type = typename meta::acceptable_type<const T&, Rest...>::type;
+        int tmp = meta::index_of_type<Type, Rest...>::value; // tmp is always valid
         if(type_index_ != tmp)
         {
           clear();
           data_.template construct<Type>(rhs);
-        }
-        else
-        {
-          using From = typename std::remove_reference<T>::type;
-          meta::variant_assign<Type, From>::assign(&data_, &rhs);
-        }
-        update_index<Type>();
-        return *this;
-      }
-
-      template<typename T> variant& operator= (T&& rhs)
-      {
-        using Real = decltype(rhs);
-        using AT = typename meta::assignable_type<Real, Rest...>::type;
-        using Type = typename std::enable_if<
-          meta::is_assignable_from<Real, Rest...>::value, AT>::type;
-        int tmp = meta::index_of_type<AT, Rest...>::value;
-        if(type_index_ != tmp)
-        {
-          clear();
-          data_.template construct<Type>(std::forward<T>(rhs));
           update_index<Type>();
         }
         else
         {
-          using From = typename std::remove_reference<T>::type;
-          if(std::is_lvalue_reference<Real>::value)
-          {
-            meta::variant_assign<Type, From>::assign(&data_, &rhs);
-          }
-          else
-          {
-            meta::variant_assign<Type, From>::move(&data_, &rhs);
-          }
+          get<Type>() = rhs;
+        }
+        return *this;
+      }
+
+      template<typename T, typename std::enable_if<
+        meta::is_acceptable_from<T&&, Rest...>::value
+      >::type* = nullptr> variant& operator= (T&& rhs)
+      {
+        using Real = decltype(rhs);
+        using Type = typename meta::acceptable_type<Real, Rest...>::type;
+        int tmp = meta::index_of_type<Type, Rest...>::value; // tmp is always valid
+        if(type_index_ != tmp)
+        {
+          clear();
+          data_.template construct<Type>(std::forward<Real>(rhs));
+          update_index<Type>();
+        }
+        else
+        {
+          get<Type>() = std::forward<Real>(rhs);
         }
         return *this;
       }
@@ -582,7 +571,7 @@ namespace nm
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
         clear();
-        data_.template construct<Type>(std::move(rhs));
+        data_.template construct<Type>(std::forward<Type>(rhs));
         update_index<T>();
       }
 
@@ -603,7 +592,7 @@ namespace nm
         int tmp = meta::index_of_type<T, Rest...>::value;
         if(type_index_ != tmp)
           throw std::runtime_error("get type mismatch set type");
-        return *reinterpret_cast<T*>(&data_);
+        return *reinterpret_cast<T*>(data_.raw());
       }
 
       template<typename F, typename... Fs> void call(F&& func, Fs&&...funcs)
@@ -648,10 +637,9 @@ namespace nm
           }
           template<typename Type, typename T> void construct(T&& rhs)
           {
-            new(raw()) Type(std::move(rhs));
+            new(raw()) Type(std::forward<T>(rhs));
           }
           void* raw() { return static_cast<void*>(&data_); }
-        private:
           data_type data_;
       };
       Data data_;
@@ -675,13 +663,13 @@ namespace nm
 
       void copy_construct(const variant& rhs)
       {
-        helper::copy(rhs.type_index_, &data_, &rhs.data_, data_size);
+        helper::copy(rhs.type_index_, data_.raw(), &rhs.data_.data_, data_size);
         type_index_ = rhs.type_index_;
       }
 
       void move_construct(variant& rhs)
       {
-        helper::move(rhs.type_index_, &data_, &rhs.data_, data_size);
+        helper::move(rhs.type_index_, data_.raw(), &rhs.data_.data_, data_size);
         type_index_ = rhs.type_index_;
       }
   };
