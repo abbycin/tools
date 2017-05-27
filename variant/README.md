@@ -49,7 +49,7 @@ cout << va.apply<string>(op2{}) << '\n'; // print 2.330000
 refer to [test.cpp](./test.cpp) for details.
 
 ## bugs
-As you can see, there's only one [test](./test.cpp), but I don't think there are serious bugs, what I really concern is **Undefined Behavior** in this [library](./variant.h).
+As you can see, there's only one [test](./test.cpp), but I don't think there are serious bugs.
 
 ## note
 the `call` member function is only tested for a bancuh of lambdas, maybe it will work for `std::function` or any other `functors`.

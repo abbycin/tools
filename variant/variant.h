@@ -464,7 +464,7 @@ namespace nm
         : variant()
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
-        data_.template construct<Type>(std::forward<Type>(rhs));
+        data_.template construct<Type>(std::forward<T>(rhs));
         update_index<Type>();
       }
 
@@ -571,7 +571,7 @@ namespace nm
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
         clear();
-        data_.template construct<Type>(std::forward<Type>(rhs));
+        data_.template construct<Type>(std::forward<T>(rhs));
         update_index<T>();
       }
 
