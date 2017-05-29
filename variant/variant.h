@@ -17,31 +17,6 @@ namespace nm
 {
   namespace meta
   {
-    // size less than
-    template<typename T, typename U> struct size_lt
-    {
-      constexpr static bool value = sizeof(T) < sizeof(U);
-    };
-
-    // size greater than
-    template<typename T, typename U> struct size_gt
-    {
-      constexpr static bool value = sizeof(T) > sizeof(U);
-    };
-
-    template<template<typename, typename> class, typename, typename...> struct type_size;
-    template<template<typename, typename> class Op, typename T> struct type_size<Op, T>
-    {
-      constexpr static size_t value = sizeof(T);
-    };
-    template<template<typename, typename> class Op, typename T, typename U, typename... Rest>
-    struct type_size<Op, T, U, Rest...>
-    {
-      constexpr static size_t value = Op<T, U>::value
-                                      ? type_size<Op, T, Rest...>::value
-                                      : type_size<Op, U, Rest...>::value;
-    };
-
     template<size_t _1, size_t...> struct max_size_of;
     template<size_t _1> struct max_size_of<_1>
     {
@@ -441,14 +416,6 @@ namespace nm
 
       variant() : type_index_(-1) {}
 
-      template<typename T> variant(T& rhs, typename std::enable_if<
-          and_<not_<std::is_const<T>>, not_<std::is_same<T, variant>>,
-            meta::is_construct_from<T&, Rest...>>::value>::type* = nullptr)
-        : variant()
-      {
-        assign(rhs);
-      }
-
       template<typename T> variant(const T& rhs, typename std::enable_if<
         and_<not_<std::is_same<T, variant>>,
           meta::is_construct_from<const T&, Rest...>>::value>::type* = nullptr)
@@ -466,12 +433,6 @@ namespace nm
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
         data_.template construct<Type>(std::forward<T>(rhs));
         update_index<Type>();
-      }
-
-      variant(variant& rhs)
-        : variant()
-      {
-        copy_construct(rhs);
       }
 
       variant(const variant& rhs)
@@ -500,7 +461,8 @@ namespace nm
         }
         else
         {
-          get<Type>() = rhs;
+          auto& lhs = get<Type>();
+          lhs = rhs;
         }
         return *this;
       }
@@ -520,7 +482,8 @@ namespace nm
         }
         else
         {
-          get<Type>() = std::forward<Real>(rhs);
+          auto& lhs = get<Type>();
+          lhs = std::forward<Real>(rhs);
         }
         return *this;
       }
