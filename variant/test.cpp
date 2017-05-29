@@ -53,7 +53,7 @@ struct Operation
 
 struct Operation2 : public variant_visitor<string>
 {
-  string operator() (size_t x) { cout << "int = "; return to_string(x); }
+  string operator() (size_t x) { cout << "size_t = "; return to_string(x); }
   string operator() (const string& x) { cout << "string = ";  return x; }
   string operator() (double x) { cout << "double = "; return to_string(x); }
 };
@@ -78,7 +78,8 @@ int main()
   ba->bar::foo();
   static_cast<baz*>(ba)->foo();
   delete static_cast<baz*>(ba);
-  cout << (v != vv ? "v not equal vv" : " v equal vv") << '\n';
+  cout << (v != va ? "v not equal va" : " v equal va") << '\n';
+  v = 2.33;
   cout << (v == va ? "v equal va" : " v not equal va") << '\n';
   variant<std::string, int> vx = "2.33";
   std::string s("-1s");
@@ -100,7 +101,7 @@ int main()
   {
     // user should ensure no conversion happen
     variant<string, double, size_t> app = 2.33;
-    app.apply<size_t>(Operation{}); // print 'size_t = '
+    app.apply<size_t>(Operation{}); // print 'double = '
     cout << '\n';
   }
   {

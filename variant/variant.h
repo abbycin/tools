@@ -118,14 +118,25 @@ namespace nm
       constexpr static bool value = tmp ? is_type_unique<Rest...>::value : tmp;
     };
 
-    template<typename, typename, typename...> struct ctor_type;
-    template<typename T, typename U> struct ctor_type<T, U>
+    template<typename, typename, typename...> struct ctor_type_helper;
+    template<typename T, typename U> struct ctor_type_helper<T, U>
     {
       using type = typename cond<std::is_constructible<U, T>::value, U, T>::type;
     };
+    template<typename T, typename U, typename... Rest> struct ctor_type_helper
+    {
+      using type = typename ctor_type_helper<
+        typename ctor_type_helper<T, U>::type, Rest...>::type;
+    };
+
     template<typename T, typename U, typename... Rest> struct ctor_type
     {
-      using type = typename ctor_type<typename ctor_type<T, U>::type, Rest...>::type;
+      private:
+        using Raw = typename std::remove_cv<
+          typename std::remove_reference<T>::type>::type;
+      public:
+        using type = typename cond<is_in<Raw, U, Rest...>::value, Raw,
+          typename ctor_type_helper<T, U, Rest...>::type>::type;
     };
 
     template<typename T, typename U, typename... Rest> struct is_construct_from
@@ -160,15 +171,25 @@ namespace nm
           decltype(test(std::forward<Rhs>(std::declval<Rhs>())))>::value;
     };
 
-    template<typename T, typename U, typename... Rest> struct acceptable_type;
-    template<typename T, typename U> struct acceptable_type<T, U>
+    template<typename T, typename U, typename... Rest> struct acceptable_type_helper;
+    template<typename T, typename U> struct acceptable_type_helper<T, U>
     {
       using type = typename cond<is_acceptable<U, T>::value, U, T>::type;
     };
+    template<typename T, typename U, typename... Rest> struct acceptable_type_helper
+    {
+      using type = typename acceptable_type_helper<
+        typename acceptable_type_helper<T, U>::type, Rest...>::type;
+    };
+
     template<typename T, typename U, typename... Rest> struct acceptable_type
     {
-      using type = typename acceptable_type<
-        typename acceptable_type<T, U>::type, Rest...>::type;
+      private:
+        using Raw = typename std::remove_cv<
+          typename std::remove_reference<T>::type>::type;
+      public:
+        using type = typename cond<is_in<Raw, U, Rest...>::value, Raw,
+          typename acceptable_type_helper<T, U, Rest...>::type>::type;
     };
 
     template<typename T, typename U, typename... Rest> struct is_acceptable_from;
@@ -508,14 +529,12 @@ namespace nm
         return *this;
       }
 
-      template<typename... Args>
-      bool operator== (const variant<Args...>& rhs)
+      bool operator== (const variant& rhs)
       {
-        return std::is_same<std::tuple<Rest...>, std::tuple<Args...>>::value;
+        return which() == rhs.which();
       }
 
-      template<typename... Args>
-      bool operator!= (const variant<Args...> & rhs)
+      bool operator!= (const variant& rhs)
       {
         return !(*this == rhs);
       }
