@@ -315,9 +315,12 @@ namespace nm
       static void copy(int, void*, const void*, size_t) {}
       static void move(int, void*, void*, size_t) {}
       template<typename... Fn>
-      static void call(int, void*, Fn&&... fs) {}
+      static void call(int, void*, Fn&&...) {}
       template<typename Res, typename Obj>
-      static Res apply(int, void*, Obj& obj) { return Res{}; }
+      static Res apply(int, void*, Obj&) { return Res{}; }
+      template<typename Obj>
+      static void apply2(int, void*, Obj&) {}
+      static void dump(int, const void*, std::ostream&) {}
     };
     template<typename T, typename... R> struct variant_helper<T, R...>
     {
@@ -347,16 +350,9 @@ namespace nm
         }
         else if(index == 0)
         {
-          if(std::is_pod<T>::value)
-          {
-            memcpy(lhs, rhs, n);
-          }
-          else
-          {
-            static_assert(std::is_copy_constructible<T>::value,
-                          "type is not copy constructible");
-            new(lhs) T(*static_cast<const T*>(rhs));
-          }
+          static_assert(std::is_copy_constructible<T>::value,
+                        "type is not copy constructible");
+          new(lhs) T(*static_cast<const T*>(rhs));
         }
       }
 
@@ -369,16 +365,9 @@ namespace nm
         }
         else if(index == 0)
         {
-          if(std::is_pod<T>::value)
-          {
-            memcpy(lhs, rhs, n);
-          }
-          else
-          {
-            static_assert(std::is_move_constructible<T>::value,
-                          "type is not move constructible");
-            new(lhs) T(std::move(*static_cast<T*>(rhs)));
-          }
+          static_assert(std::is_move_constructible<T>::value,
+                        "type is not move constructible");
+          new(lhs) T(std::move(*static_cast<T*>(rhs)));
         }
       }
 
@@ -411,7 +400,58 @@ namespace nm
         }
         return Res{};
       }
+
+      template<typename Obj>
+      static void apply2(int index, void* data, Obj& obj)
+      {
+        if(index > 0)
+        {
+          index -= 1;
+          variant_helper<R...>::template apply2<Obj>(index, data, obj);
+        }
+        else if(index == 0)
+        {
+          obj(*static_cast<T*>(data));
+        }
+      }
+
+      static void dump(int index, const void* data, std::ostream& os)
+      {
+        if(index > 0)
+        {
+          index -= 1;
+          variant_helper<R...>::dump(index, data, os);
+        }
+        else if(index == 0)
+        {
+          os << (*static_cast<const T*>(data));
+        }
+      }
     };
+
+    template<typename Arg, typename... Args>
+    struct overload_helper : Arg, overload_helper<Args...>
+    {
+      using Arg::operator();
+      using overload_helper<Args...>::operator();
+      overload_helper(Arg arg, Args... args)
+        : Arg(arg), overload_helper<Args...>(args...) {}
+    };
+
+    template<typename Arg>
+    struct overload_helper<Arg> : Arg
+    {
+      overload_helper(Arg arg) : Arg(arg){}
+    };
+  }
+
+  template<typename... Args>
+  constexpr auto make_overload(Args... args)
+#if __cplusplus < 201402L
+  -> decltype(meta::overload_helper<Args...>{args...})
+#endif
+  {
+    return meta::overload_helper<Args...>{ args... };
   }
 }
 
@@ -435,7 +475,7 @@ namespace nm
         clear();
       }
 
-      variant() : type_index_(-1) {}
+      constexpr variant() noexcept : type_index_(-1) {}
 
       template<typename T> variant(const T& rhs, typename std::enable_if<
         and_<not_<std::is_same<T, variant>>,
@@ -473,7 +513,7 @@ namespace nm
       >::type* = nullptr> variant& operator= (const T& rhs)
       {
         using Type = typename meta::acceptable_type<const T&, Rest...>::type;
-        int tmp = meta::index_of_type<Type, Rest...>::value; // tmp is always valid
+        constexpr int tmp = meta::index_of_type<Type, Rest...>::value;
         if(type_index_ != tmp)
         {
           clear();
@@ -494,7 +534,7 @@ namespace nm
       {
         using Real = decltype(rhs);
         using Type = typename meta::acceptable_type<Real, Rest...>::type;
-        int tmp = meta::index_of_type<Type, Rest...>::value; // tmp is always valid
+        constexpr int tmp = meta::index_of_type<Type, Rest...>::value;
         if(type_index_ != tmp)
         {
           clear();
@@ -513,7 +553,6 @@ namespace nm
       {
         if(this != &rhs)
         {
-          clear();
           copy_construct(rhs);
         }
         return *this;
@@ -523,7 +562,6 @@ namespace nm
       {
         if(this != &rhs)
         {
-          clear();
           move_construct(rhs);
         }
         return *this;
@@ -571,7 +609,7 @@ namespace nm
       {
         if(type_index_ < 0)
           throw std::runtime_error("bad get on an empty variant");
-        int tmp = meta::index_of_type<T, Rest...>::value;
+        constexpr int tmp = meta::index_of_type<T, Rest...>::value;
         if(type_index_ != tmp)
           throw std::runtime_error("get type mismatch set type");
         return *reinterpret_cast<T*>(data_.raw());
@@ -581,6 +619,11 @@ namespace nm
       {
         helper::call(type_index_, data_.raw(),
                      std::forward<F>(func), std::forward<Fs>(funcs)...);
+      }
+
+      template<typename Obj> void call2(Obj&& obj)
+      {
+        helper::apply2(type_index_, data_.raw(), obj);
       }
 
       template<typename Obj> typename Obj::type apply(Obj&& obj)
@@ -594,13 +637,20 @@ namespace nm
         return helper::template apply<Res, Obj>(type_index_, data_.raw(), obj);
       }
 
+      // if variant is invalid, do nothing.
+      friend std::ostream& operator<< (std::ostream& os, const variant& rhs)
+      {
+        helper::dump(rhs.which(), &rhs.data_.data_, os);
+        return os;
+      }
+
       void clear()
       {
         helper::clear(type_index_, data_.raw());
         type_index_ = -1;
       }
 
-      int which() const
+      constexpr int which() const noexcept
       {
         return type_index_;
       }
@@ -645,12 +695,18 @@ namespace nm
 
       void copy_construct(const variant& rhs)
       {
+        if(rhs.which() < 0)
+          return;
+        clear();
         helper::copy(rhs.type_index_, data_.raw(), &rhs.data_.data_, data_size);
         type_index_ = rhs.type_index_;
       }
 
       void move_construct(variant& rhs)
       {
+        if(rhs.which() < 0)
+          return;
+        clear();
         helper::move(rhs.type_index_, data_.raw(), &rhs.data_.data_, data_size);
         type_index_ = rhs.type_index_;
       }

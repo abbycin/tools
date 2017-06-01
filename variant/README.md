@@ -4,7 +4,7 @@
 - single header only library
 - simple `set/operator=` operations
 - also a `emplace` method
-- three ways for visiting underlying object
+- four ways for visiting underlying object
 
 ## requirement
 A complier which support c++11 or later (actually, if old c++ standard is not considered, it will be more easy to implement).
@@ -45,6 +45,14 @@ struct op2
 };
 va = 2.33
 cout << va.apply<string>(op2{}) << '\n'; // print 2.330000
+// or
+auto visitor = nm::make_overload(
+    [](int x) { cout << x; },
+    [](const string& s) { cout << s; },
+    [](double x) { cout << x; }
+    );
+va.call2(visitor);
+cout << '\n';
 ```
 refer to [test.cpp](./test.cpp) for details.
 

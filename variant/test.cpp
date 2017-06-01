@@ -5,8 +5,8 @@
           Created Time: Sat 13 May 2017 09:15:08 AM CST
 **********************************************************/
 
-#include <iostream>
 #include "variant.h"
+#include <iostream>
 
 using namespace std;
 using namespace nm;
@@ -35,7 +35,7 @@ struct bar
 
 struct baz : public bar
 {
-  ~baz() { printf("--->>> %s\n", __func__); }
+  ~baz() override { printf("--->>> %s\n", __func__); }
   void foo() override { printf("baz\n"); }
 };
 
@@ -47,7 +47,7 @@ variant<std::string> make_variant()
 struct Operation
 {
   size_t operator() (size_t x) { cout << "size_t = "; return x; }
-  size_t operator() (string x) { cout << "string.length = "; return x.size(); }
+  size_t operator() (const string& x) { cout << "string.length = "; return x.size(); }
   double operator() (double x) { cout << "double = ";  return x; }
 };
 
@@ -76,8 +76,8 @@ int main()
   variant<bar*> b{static_cast<bar*>(new baz{})};
   bar* ba = b.get<bar*>();
   ba->bar::foo();
-  static_cast<baz*>(ba)->foo();
-  delete static_cast<baz*>(ba);
+  dynamic_cast<baz*>(ba)->foo();
+  delete dynamic_cast<baz*>(ba);
   cout << (v != va ? "v not equal va" : " v equal va") << '\n';
   v = 2.33;
   cout << (v == va ? "v equal va" : " v not equal va") << '\n';
@@ -107,7 +107,7 @@ int main()
   {
     variant<string, double, size_t> app;
     app.emplace<double>(2.33);
-    double res = app.apply<double>(Operation{});
+    auto res = app.apply<double>(Operation{});
     cout << res << '\n';
   }
   {
@@ -115,5 +115,12 @@ int main()
     app.apply<size_t>(Operation{}); // nothing
     app = 2.333;
     cout << app.apply(Operation2{}) << '\n';
+    cout << variant<int, double, string>{"test operator<<\n"};
+    auto v = nm::make_overload(
+        [](size_t x) { cout << x; },
+        [](string& x) { cout << x; },
+        [](double x) { cout << x; }
+        );
+    app.call2(v); cout << '\n';
   }
 }
