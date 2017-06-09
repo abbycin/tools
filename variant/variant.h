@@ -350,16 +350,9 @@ namespace nm
         }
         else if(index == 0)
         {
-          if(std::is_pod<T>::value)
-          {
-            memcpy(lhs, rhs, n);
-          }
-          else
-          {
-            static_assert(std::is_copy_constructible<T>::value,
-                          "type is not copy constructible");
-            new(lhs) T(*static_cast<const T*>(rhs));
-          }
+          static_assert(std::is_copy_constructible<T>::value,
+                        "type is not copy constructible");
+          new(lhs) T(*static_cast<const T*>(rhs));
         }
       }
 
@@ -372,16 +365,9 @@ namespace nm
         }
         else if(index == 0)
         {
-          if(std::is_pod<T>::value)
-          {
-            memcpy(lhs, rhs, n);
-          }
-          else
-          {
-            static_assert(std::is_move_constructible<T>::value,
-                          "type is not move constructible");
-            new(lhs) T(std::move(*static_cast<T*>(rhs)));
-          }
+          static_assert(std::is_move_constructible<T>::value,
+                        "type is not move constructible");
+          new(lhs) T(std::move(*static_cast<T*>(rhs)));
         }
       }
 
