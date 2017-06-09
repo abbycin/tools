@@ -55,6 +55,9 @@ namespace nm
           string_ext line{};
           while(std::getline(in, line))
           {
+            if(line.empty())
+              continue;
+            line.lstrip();
             if(!line.empty() && line[0] == '#')
               continue;
             line.split(cmd_, " ");
@@ -66,7 +69,8 @@ namespace nm
           in.close();
           return;
         }
-        msg_ = strerror(errno);
+        msg_ = path + ' ';
+        msg_ += strerror(errno);
       }
       
       Clp(const Clp&) = delete;
@@ -95,6 +99,7 @@ namespace nm
             break;
           case Option::LONG:
             parse("--");
+            break;
           case Option::ALL:
             parse("-");
             parse("--");
@@ -231,7 +236,7 @@ namespace nm
             }
           }
           // no value
-          else if(iter->find_first_of(delim) != iter->npos)
+          else if(iter->find_first_of(delim) < delim.size())
           {
             --iter;
             c_.emplace(tmp);

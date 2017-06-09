@@ -261,7 +261,8 @@ class Worker
     {
       public:
         Task()
-          : work_(new io_service::work(io_))
+          : strand_(io_),
+            work_(new io_service::work(io_))
         {}
 
         ~Task()
@@ -275,7 +276,7 @@ class Worker
         // fuck proactor!
         void dispatch(SessionPtr session)
         {
-          io_.dispatch([session] {
+          strand_.dispatch([session] {
             session->run();
           });
         }
@@ -293,6 +294,7 @@ class Worker
 
       private:
         io_service io_;
+        boost::asio::strand strand_;
         std::unique_ptr<io_service::work> work_;
     };
 

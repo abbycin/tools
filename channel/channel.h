@@ -157,14 +157,19 @@ class Queue
 
     ~Queue()
     {
-      auto tmp = head_.load();
-      auto cur = tmp;
-      while(tmp != nullptr)
+      this->clear();
+    }
+
+    void clear()
+    {
+      Node* tmp = nullptr;
+      while(tail_)
       {
-        cur = tmp;
-        tmp = tmp->next.load();
-        dealloc(cur);
+        tmp = tail_->next.load();
+        dealloc(tail_);
+        tail_ = tmp;
       }
+      tail_ = nullptr;
     }
 
     bool empty() const

@@ -72,14 +72,14 @@ namespace nm
 
         ~Queue()
         {
-          auto tmp = head_.load();
-          Node* cur = nullptr;
-          while(tmp != nullptr)
+          Node* tmp = nullptr;
+          while(tail_)
           {
-            cur = tmp;
-            tmp = tmp->next.load();
-            delete cur;
+            tmp = tail_->next.load();
+            delete tail_;
+            tail_ = tmp;
           }
+          tail_ = nullptr;
         }
 
         void push(std::string&& data)
@@ -359,7 +359,8 @@ namespace nm
         void link()
         {
           unlink(current_log_.c_str());
-          symlink(new_name().c_str(), current_log_.c_str());
+          int res = symlink(new_name().c_str(), current_log_.c_str());
+          (void)res;
         }
 
         void update_time()
@@ -496,22 +497,23 @@ namespace nm
         Stream& operator= (const Stream&) = delete;
         Stream& operator= (Stream&&) = delete;
 
+        Stream& operator<< (const std::nullptr_t&)
+        {
+          return *this;
+        }
+
         Stream& operator<< (const char* s)
         {
           if(s)
           {
             buffer_.append(s, std::char_traits<char>::length(s));
           }
-          else
-          {
-            buffer_.append("(null)", 6);
-          }
           return *this;
         }
 
         Stream& operator<< (const unsigned char* s)
         {
-          return this->operator<<(reinterpret_cast<const char*>(str));
+          return this->operator<<(reinterpret_cast<const char*>(s));
         }
 
         Stream& operator<< (const std::string& data)

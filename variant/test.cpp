@@ -115,5 +115,12 @@ int main()
     app.apply<size_t>(Operation{}); // nothing
     app = 2.333;
     cout << app.apply(Operation2{}) << '\n';
+    cout << variant<int, double, string>{"test operator<<\n"};
+    auto v = nm::make_overload(
+        [](size_t x) { cout << x; },
+        [](string& x) { cout << x; },
+        [](double x) { cout << x; }
+        );
+    app.call2(v); cout << '\n';
   }
 }
