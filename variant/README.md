@@ -60,4 +60,4 @@ refer to [test.cpp](./test.cpp) for details.
 As you can see, there's only one [test](./test.cpp), but I don't think there are serious bugs.
 
 ## note
-the `call` member function is only tested for a bancuh of lambdas, maybe it will work for `std::function` or any other `functors`.
+the `call` member function is only tested for lambdas, it may work for `std::function` or any other `functor`.
