@@ -110,6 +110,7 @@ namespace nm
     class FileLog
     {
       public:
+        constexpr static const int COUNT_DOWN{3};
         FileLog(const std::string& path,
                 const std::string& prefix, long interval)
           : path_(path), interval_(interval), count_(now()),
@@ -161,6 +162,11 @@ namespace nm
             setbuffer(fp_, buffer_, sizeof(buffer_));
           }
           return true;
+        }
+
+        void flush()
+        {
+          fflush_unlocked(fp_);
         }
 
         void write(std::string& buffer)
@@ -218,7 +224,6 @@ namespace nm
         }
 
       private:
-        enum { COUNT_DOWN = 3 };
         std::string path_;
         const long interval_;
         long count_;
@@ -533,7 +538,7 @@ namespace nm
         bool ok_{true};
         std::mutex mtx_;
         std::condition_variable cond_;
-        std::chrono::seconds timeout_{1};
+        std::chrono::seconds timeout_{FileLog::COUNT_DOWN};
         bool running_{true};
         bool need_notify_{false};
         std::function<void(StreamBuffer&)> writer_;
@@ -609,6 +614,7 @@ namespace nm
             });
             need_notify_ = false;
             log_->write(data);
+            log_->flush();
           }
         }
 
