@@ -121,6 +121,6 @@ int main()
         [](string& x) { cout << x; },
         [](double x) { cout << x; }
         );
-    app.call2(v); cout << '\n';
+    app.apply<void>(v); cout << '\n';
   }
 }

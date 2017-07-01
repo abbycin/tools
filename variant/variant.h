@@ -308,6 +308,7 @@ namespace nm
       }
     };
 
+    // return void() in void function: n4659 [expr.type.conv]
     template<typename...> struct variant_helper;
     template<> struct variant_helper<>
     {
@@ -317,9 +318,7 @@ namespace nm
       template<typename... Fn>
       static void call(int, void*, Fn&&...) {}
       template<typename Res, typename Obj>
-      static Res apply(int, void*, Obj&) { return Res{}; }
-      template<typename Obj>
-      static void apply2(int, void*, Obj&) {}
+      static Res apply(int, void*, Obj&) { return Res(); }
       static void dump(int, const void*, std::ostream&) {}
     };
     template<typename T, typename... R> struct variant_helper<T, R...>
@@ -398,21 +397,7 @@ namespace nm
         {
           return obj(*static_cast<T*>(data));
         }
-        return Res{};
-      }
-
-      template<typename Obj>
-      static void apply2(int index, void* data, Obj& obj)
-      {
-        if(index > 0)
-        {
-          index -= 1;
-          variant_helper<R...>::template apply2<Obj>(index, data, obj);
-        }
-        else if(index == 0)
-        {
-          obj(*static_cast<T*>(data));
-        }
+        return Res();
       }
 
       static void dump(int index, const void* data, std::ostream& os)
@@ -619,11 +604,6 @@ namespace nm
       {
         helper::call(type_index_, data_.raw(),
                      std::forward<F>(func), std::forward<Fs>(funcs)...);
-      }
-
-      template<typename Obj> void call2(Obj&& obj)
-      {
-        helper::apply2(type_index_, data_.raw(), obj);
       }
 
       template<typename Obj> typename Obj::type apply(Obj&& obj)
