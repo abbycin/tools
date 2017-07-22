@@ -8,7 +8,6 @@
 #ifndef VARIANT_H__
 #define VARIANT_H__
 
-#include <cstring>
 #include <functional>
 #include <stdexcept>
 #include <type_traits>
@@ -656,12 +655,12 @@ namespace nm
       };
       Data data_;
 
-      template<typename T> constexpr void check()
+      template<typename T> void check()
       {
         static_assert(meta::is_in<T, Rest...>::value, "invalid type");
       }
 
-      template<typename T> constexpr void update_index()
+      template<typename T> void update_index()
       {
         type_index_ = meta::index_of_type<T, Rest...>::value;
       }

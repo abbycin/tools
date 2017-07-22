@@ -51,7 +51,7 @@ auto visitor = nm::make_overload(
     [](const string& s) { cout << s; },
     [](double x) { cout << x; }
     );
-va.call2(visitor);
+va.apply<void>(visitor);
 cout << '\n';
 ```
 refer to [test.cpp](./test.cpp) for details.

@@ -118,15 +118,10 @@ namespace nm
 
 int main()
 {
-  auto vi = nm::make_overload(
-      [](int x) { std::cout << x << '\n'; },
-      [](double x) { printf("%.3f\n", x); },
-      [](const std::string& s) { std::cout << s << '\n'; }
-      );
   nm::variant_list<int, double, std::string> l;
   l.push(233);
   l.push(3809.929);
   l.push("ha??");
   for(auto& x: l)
-    x.call2(vi);
+    std::cout << x << '\n';
 }

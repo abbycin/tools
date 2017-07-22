@@ -49,8 +49,14 @@ namespace nm
       {
         case 3:
           h ^= static_cast<unsigned char>(data[2]) << 16;
+#if __cplusplus >= 201703
+          [[fallthrough]];
+#endif
         case 2:
           h ^= static_cast<unsigned char>(data[1]) << 8;
+#if __cplusplus >=201703
+          [[fallthrough]];
+#endif
         case 1:
           h ^= static_cast<unsigned char>(data[0]);
           h *= m;
@@ -59,7 +65,7 @@ namespace nm
       h *= m;
       h ^= h >> 15;
       return h;
-    };
+    }
     class HashTable
     {
       private:
@@ -121,7 +127,7 @@ namespace nm
             }
         };
         HashTable(): allow_multi_(false), size_(0), limit_(0), list_(nullptr)
-        { 
+        {
           resize_();
         }
         HashTable(bool allow_multi)
@@ -130,7 +136,7 @@ namespace nm
           resize_();
         }
         ~HashTable()
-        { 
+        {
           for(uint32_t i = 0; i < limit_; ++i)
           {
             node* ptr = list_[i];

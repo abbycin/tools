@@ -419,7 +419,6 @@ namespace nm
         size_t pos_{0};
         char buffer_[SIZE];
 
-        // the following convert functions are copied from muduo
         const char* const digits = "9876543210123456789";
         const char* const digitsHex = "0123456789abcdef";
         const char* zero = digits + 9;
