@@ -201,7 +201,7 @@ namespace nm
             return;
           }
           // get key
-          if(iter->find_first_of(delim) != iter->npos && *iter != "--")
+          if(iter->find(delim) != iter->npos && *iter != "--")
           {
             tmp = iter->substr(delim.length());
             has_key = true;
@@ -236,7 +236,7 @@ namespace nm
             }
           }
           // no value
-          else if(iter->find_first_of(delim) < delim.size())
+          else if(iter->find(delim) < delim.size())
           {
             --iter;
             c_.emplace(tmp);

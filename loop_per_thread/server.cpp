@@ -174,14 +174,13 @@ class Session : public std::enable_shared_from_this<Session>
                            //std::cerr << ec.message() << std::endl;
                            return;
                          }
-                         buf_.consume(bytes);
                          processing();
                        });
     }
 
     void processing()
     {
-      async_write(socket_, boost::asio::buffer("pong\n"),
+      async_write(socket_, buf_,
                   [this, self = shared_from_this()](const error_code& ec, size_t)
                   {
                     if(ec)

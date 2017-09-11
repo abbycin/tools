@@ -219,7 +219,6 @@ namespace nm
       template<typename F> constexpr static void call(F) {}
     };
 
-    // common idiom CRTP
     template<typename... Args> struct overloaded : Args...
     {
       using Args::operator()...;

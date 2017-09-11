@@ -147,9 +147,8 @@ class Queue
 
   public:
     Queue()
-      : size_(0),
-      head_(alloc<Node>()),
-      tail_(head_.load())
+      : head_(alloc<Node>()),
+        tail_(head_.load())
     {
       auto tmp = head_.load();
       tmp->next.store(nullptr);
@@ -174,12 +173,7 @@ class Queue
 
     bool empty() const
     {
-      return size_ == 0;
-    }
-
-    size_t unsafe_size() const
-    {
-      return size_.load();
+      return tail_->next.load(std::memory_order_acquire) == nullptr;
     }
 
     void push(const T& data)
@@ -189,7 +183,6 @@ class Queue
       tmp->next.store(nullptr, std::memory_order_relaxed);
       auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
       old_head->next.store(tmp, std::memory_order_release);
-      size_ += 1;
     }
 
     void push(T&& data)
@@ -199,7 +192,6 @@ class Queue
       tmp->next.store(nullptr, std::memory_order_relaxed);
       auto old_head = head_.exchange(tmp, std::memory_order_acq_rel);
       old_head->next.store(tmp, std::memory_order_release);
-      size_ += 1;
     }
 
     bool try_pop(T& data)
@@ -210,12 +202,10 @@ class Queue
       data = std::move(next->data);
       dealloc(tail_);
       tail_ = next;
-      size_ -= 1;
       return true;
     }
 
   private:
-    std::atomic<size_t> size_;
     std::atomic<Node*> head_;
     Node* tail_;
 };
