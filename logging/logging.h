@@ -615,6 +615,11 @@ namespace nm
             log_->write(data);
             log_->flush();
           }
+          while(queue_.try_pop(data))
+          {
+            log_->write(data);
+          }
+          log_->flush();
         }
 
         void log_async(FILE* fp, const char* path, const char* prefix,
