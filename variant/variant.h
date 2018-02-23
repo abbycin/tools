@@ -461,18 +461,23 @@ namespace nm
 
       constexpr variant() noexcept : type_index_(-1) {}
 
-      template<typename T> variant(const T& rhs, typename std::enable_if<
-        and_<not_<std::is_same<T, variant>>,
-          meta::is_construct_from<const T&, Rest...>>::value>::type* = nullptr)
+      template<typename T,
+        typename std::enable_if<
+          and_<not_<std::is_same<T, variant>>,
+              meta::is_construct_from<const T&, Rest...>>::value>::type* = nullptr>
+      variant(const T& rhs)
         : variant()
       {
         assign(rhs);
       }
 
-      template<typename T> variant(T&& rhs, typename std::enable_if<
-        and_<std::is_rvalue_reference<T&&>, not_<std::is_const<T>>,
-          not_<std::is_same<T, variant>>,
-          meta::is_construct_from<T&&, Rest...>>::value>::type* = nullptr)
+      template<typename T,
+        typename std::enable_if<
+          and_<std::is_rvalue_reference<T&&>,
+              not_<std::is_const<T>>,
+              not_<std::is_same<T, variant>>,
+          meta::is_construct_from<T&&, Rest...>>::value>::type* = nullptr>
+      variant(T&& rhs)
         : variant()
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
@@ -561,8 +566,9 @@ namespace nm
         return !(*this == rhs);
       }
 
-      template<typename T> void set(const T& rhs, typename std::enable_if<
-        meta::is_in<T, Rest...>::value>::type* = nullptr)
+      template<typename T,
+        typename std::enable_if<meta::is_in<T, Rest...>::value>::type* = nullptr>
+      void set(const T& rhs)
       {
         using Type = typename meta::ctor_type<const T&, Rest...>::type;
         clear();
@@ -570,8 +576,9 @@ namespace nm
         update_index<Type>();
       }
 
-      template<typename T> void set(T&& rhs, typename std::enable_if<
-        meta::is_in<T, Rest...>::value>::type* = nullptr)
+      template<typename T,
+        typename std::enable_if<meta::is_in<T, Rest...>::value>::type* = nullptr>
+      void set(T&& rhs)
       {
         using Type = typename meta::ctor_type<T&&, Rest...>::type;
         clear();

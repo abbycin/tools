@@ -20,37 +20,39 @@ va.set<int>(2); // reset value to 2 for type `int` explicitly
 va.get<int>();
 auto cp = va; // make a copy
 va.clear(); // clear underlying object
-cp.call([](int x) { cout << x << '\n'; }); // call a function for underlying type
-va.emplace("233"); // construct a string object
+cp.call([](int x) { cout << x << '\n';  }); // call a function for underlying type
+va.emplace<string>("233"); // construct a string object
 // if you don't know current underlying type, you can do this
-va.call([](int x) { cout << x; }
-        [](string& x) { cout << x;}
-        [](double x) { cout << x; });
+va.call([](int x) { cout << x;  },
+        [](string& x) { cout << x; },
+        [](double x) { cout << x;  });
 
 // or
 struct op : public nm::variant_visitor<string>
 {
-  string operator() (const string& s) { return s; }
-  string operator() (int x) { return to_string(x); }
-  string operator() (double x) { return to_string(x); }
+  string operator() (const string& s) { return s;  }
+  string operator() (int x) { return to_string(x);  }
+  string operator() (double x) { return to_string(x);  }
+
 };
 cout << va.apply(op{}) << '\n'; // print 233
 
 // or
 struct op2
 {
-  string operator() (const string& s) { return s; }
-  string operator() (int x) { return to_string(x); }
-  string operator() (double x) { return to_string(x); }
+  string operator() (const string& s) { return s;  }
+  string operator() (int x) { return to_string(x);  }
+  string operator() (double x) { return to_string(x);  }
+
 };
-va = 2.33
+va = 2.33;
 cout << va.apply<string>(op2{}) << '\n'; // print 2.330000
 // or
 auto visitor = nm::make_overload(
-    [](int x) { cout << x; },
-    [](const string& s) { cout << s; },
-    [](double x) { cout << x; }
-    );
+    [](int x) { cout << x;  },
+    [](const string& s) { cout << s;  },
+    [](double x) { cout << x;  }
+);
 va.apply<void>(visitor);
 cout << '\n';
 ```
