@@ -67,6 +67,7 @@ namespace nm
       constexpr static bool value = helper_and<
         helper_not<std::is_void<T>>,
         helper_not<std::is_const<T>>,
+        helper_not<std::is_array<T>>,
         helper_not<std::is_reference<T>>>::value;
     };
     template<typename T, typename U> struct is_valid_variant_types<T, U>
