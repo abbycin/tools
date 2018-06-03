@@ -167,7 +167,7 @@ class Session : public std::enable_shared_from_this<Session>
     {
       // NOTE: client may never send a '\n'
       async_read_until(socket_, buf_, '\n',
-                       [this, self = shared_from_this()](const error_code& ec, size_t bytes)
+                       [this, self = shared_from_this()](const error_code& ec, size_t)
                        {
                          if(ec)
                          {
@@ -293,7 +293,11 @@ class Worker
 
       private:
         io_service io_;
+#if BOOST_VERSION >= 106600
+        boost::asio::io_service::strand strand_;
+#else
         boost::asio::strand strand_;
+#endif
         std::unique_ptr<io_service::work> work_;
     };
 

@@ -79,9 +79,8 @@ namespace nm
     template<typename T, typename U, typename... Rest>
     struct is_valid_variant_types<T, U, Rest...>
     {
-      constexpr static bool value = is_valid_variant_types<T>::value ?
-                                    is_valid_variant_types<U, Rest...>::value :
-                                    is_valid_variant_types<T, Rest...>::value;
+      constexpr static bool value = helper_and<is_valid_variant_types<T>,
+                is_valid_variant_types<U, Rest...>>::value;
     };
 
     template<typename T, typename U, typename... Types> struct is_in;
@@ -335,7 +334,7 @@ namespace nm
           // don't rely on pseudo-destructor
           if(!std::is_pod<T>::value)
           {
-            reinterpret_cast<T*>(data)->~T();
+            static_cast<T*>(data)->~T();
           }
         }
       }
@@ -604,7 +603,7 @@ namespace nm
         constexpr int tmp = meta::index_of_type<T, Rest...>::value;
         if(type_index_ != tmp)
           throw std::runtime_error("get type mismatch set type");
-        return *reinterpret_cast<T*>(data_.raw());
+        return *static_cast<T*>(data_.raw());
       }
 
       template<typename F, typename... Fs> void call(F&& func, Fs&&...funcs)
@@ -645,7 +644,7 @@ namespace nm
     private:
       int type_index_;
       constexpr static size_t data_size = meta::max_size_of<sizeof(Rest)...>::value;
-      constexpr static size_t align_size = meta::max_size_of<alignof(Rest)...>::value;
+      constexpr static size_t align_size = sizeof(long);
       using data_type = typename std::aligned_storage<data_size, align_size>::type;
       class Data
       {

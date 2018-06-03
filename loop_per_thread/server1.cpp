@@ -70,8 +70,10 @@ class Service : boost::noncopyable,
 
     void on_write(const boost::system::error_code& ec, size_t)
     {
-      if(ec)
-        ;//std::cerr << "--->>> " << __LINE__ << "\t" << ec.message() << std::endl;
+      if(ec) {
+        //std::cerr << "--->>> " << __LINE__ << "\t" << ec.message() << std::endl;
+        return;
+      }
       // no more read.
       do_read();
     }
