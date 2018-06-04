@@ -10,7 +10,7 @@ switch_stack:
   push  rbp
 
   mov   rax, rsp
-  mov   rsp, rsi
+  mov   rsp, rdx
 
   pop   rbp
   pop   rbx
@@ -19,7 +19,7 @@ switch_stack:
   pop   r13
   pop   r12
 
-  pop   r8
+  pop   r9
 
-  mov   rsi, rax
-  jmp   r8
+  mov   rdx, rax
+  jmp   r9
