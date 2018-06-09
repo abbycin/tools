@@ -11,6 +11,7 @@
 #include <string>
 #include <type_traits>
 #include <tuple>
+#include <functional>
 
 namespace meta
 {
@@ -47,95 +48,212 @@ extern "C" {
   void* switch_stack(void* obj, void* context, void* arg);
 }
 
-template<typename> class Coroutine;
+class Coroutine;
 
-template<typename F>
-void call_member_function(Coroutine<F>* obj, void* ctx, void* arg);
+void call_member_function(Coroutine* obj, void* ctx);
 
-template<typename F>
 class Coroutine
 {
   public:
-    template<typename Fp>
-    friend void call_member_function(Coroutine<Fp>*, void*, void*);
-    using arg_t = typename meta::Inspector<F>::arg_t;
+    friend void call_member_function(Coroutine*, void*);
 
     enum { Fixed_Stack_Size = 64 * 1024};
-    Coroutine()
+
+    class Iterator
     {
-      stack_ = malloc(Fixed_Stack_Size);
-      // call pop in `switch_stack` will grow rsp, here I reserve 8k space for push
-      // and I don't check alignment, you can adjust by using std::align since C++11
-      new_sp_ = (char*)stack_ + 8192;
-    }
+      public:
+        Iterator()
+          : co_{nullptr}
+        {}
+
+        Iterator(Coroutine* co)
+          : co_{co}
+        {}
+
+        ~Iterator() {}
+
+        bool operator== (const Iterator& rhs)
+        {
+          return this->co_ == rhs.co_;
+        }
+
+        bool operator!= (const Iterator& rhs)
+        {
+          return this->co_ != rhs.co_;
+        }
+
+        Iterator& operator++ ()
+        {
+          if(co_ == nullptr)
+          {
+            return *this;
+          }
+          if(co_->done_)
+          {
+            co_ = nullptr;
+          }
+          return *this;
+        }
+
+        Coroutine& operator* ()
+        {
+          return *co_;
+        }
+
+      private:
+        Coroutine* co_;
+    };
+
+    Coroutine() = default;
 
     ~Coroutine()
     {
       free(stack_);
+      stack_ = nullptr;
     }
 
-    template<typename Fp, typename... Args>
-    void start(Fp fp, Args... args)
+    Coroutine(const Coroutine&) = delete;
+    Coroutine(Coroutine&&) = delete;
+    Coroutine& operator= (const Coroutine&) = delete;
+    Coroutine& operator= (Coroutine&&) = delete;
+
+    template<typename F, typename... Args>
+    void start(F&& f, Args&&... args)
     {
-      static_assert(std::is_same_v<Fp, F>, "function type not match");
-      using type = std::tuple<std::remove_reference_t<Args>...>;
-      static_assert(std::is_same_v<type, arg_t>, "argument type not match");
-      arg_ = type{args...};
-      fp_ = fp;
+      this->~Coroutine();
+      stack_ = malloc(Fixed_Stack_Size);
+      memset(stack_, 0, Fixed_Stack_Size);
+      // call pop in `switch_stack` will grow rsp, here I reserve 8k space for push
+      // and I don't check alignment, you can adjust by using std::align since C++11
+      new_sp_ = (char*)stack_ + 8192;
+
+      this->done_ = false;
+      using arg_t = typename meta::Inspector<F>::arg_t;
+      arg_ = new arg_t{std::forward<Args>(args)...};
+      fp_ = [f = std::forward<F>(f)](void* arg) {
+        arg_t* param = static_cast<arg_t*>(arg);
+        std::apply(f, *param);
+        delete param; // free `arg_`
+        param = nullptr;
+      };
       // skip 6 register r12~r15 and rbx rbp, assign next instruction to rip
-      *((void**)((char*)new_sp_ + 6 * 8)) = (void*)call_member_function<F>;
-      old_sp_ = switch_stack(this, new_sp_, &arg_);
+      *((void**)((char*)new_sp_ + 6 * 8)) = (void*)call_member_function;
+      new_sp_ = switch_stack(this, new_sp_, arg_);
+    }
+
+    template<typename T>
+    void yield(T* t = nullptr)
+    {
+      res_ = t;
+      new_sp_ = switch_stack(nullptr, new_sp_, nullptr);
     }
 
     void yield()
     {
-      new_sp_ = switch_stack(nullptr, new_sp_, &arg_);
+      new_sp_ = switch_stack(nullptr, new_sp_, nullptr);
     }
 
-    void resume()
+    int resume()
     {
-      old_sp_ = switch_stack(nullptr, old_sp_, &arg_);
+      if(done_)
+      {
+        return -1;
+      }
+      new_sp_ = switch_stack(nullptr, new_sp_, nullptr);
+      return 0;
+    }
+
+    bool is_finished() { return done_; }
+
+    template<typename T> const T& as() const
+    {
+      if(res_ == nullptr)
+      {
+        throw std::runtime_error("yield value is null");
+      }
+      return *static_cast<const T*>(res_);
+    }
+
+    Iterator begin()
+    {
+      return {this};
+    }
+
+    Iterator end()
+    {
+      return {};
     }
 
   private:
-    void* old_sp_{nullptr};
     void* new_sp_{nullptr};
     void* stack_{nullptr};
-    F fp_;
-    typename meta::Inspector<F>::arg_t arg_;
+    bool done_{false};
+    std::function<void(void*)> fp_;
+    void* arg_{nullptr};
+    const void* res_{nullptr};
 
-    void agent(void* ctx, void* arg)
+    void done()
     {
-      new_sp_ = switch_stack(this, ctx, arg);
-      std::apply(fp_, arg_);
+      done_ = true;
+      this->yield();
+    }
+
+    void agent(void* ctx)
+    {
+      new_sp_ = switch_stack(nullptr, ctx, nullptr);
+      fp_(arg_);
+      this->done();
     }
 };
 
-template<typename Fp>
-void call_member_function(Coroutine<Fp>* obj, void* ctx, void* arg)
+void call_member_function(Coroutine* obj, void* ctx)
 {
-  obj->agent(ctx, arg);
+  obj->agent(ctx);
 }
 
-Coroutine<void(*)(std::string)> co;
-
-void foo(std::string str)
+void foo(Coroutine* co, const std::string& str)
 {
-  for(int i = 0; i < str.size(); ++i)
+  for(auto& c: str)
   {
-    printf("%c", str.at(i));
-    co.yield();
+    printf("%c", c);
+    co->yield();
   }
   printf("\n");
 }
 
 int main()
 {
-  std::string str{"hello world"};
-  co.start(foo, str);
+  Coroutine co;
+  co.start(foo, &co, "hello world");
 
-  for(int i = 0; i < 5; ++i)
+  for(auto iter = co.begin(); iter != co.end(); ++iter)
   {
     co.resume();
   }
+
+  co.start([&co](int x) {
+    int first = 1;
+    co.yield(&first);
+
+    int second = 1;
+    co.yield(&second);
+
+    for(int i = 0; i < x; ++i)
+    {
+      int third = first + second;
+      first = second;
+      second = third;
+      co.yield(&third);
+    }
+  }, 10);
+
+  for(auto& _: co)
+  {
+    co.resume();
+    if(!_.is_finished())
+    {
+      printf("%d\t", _.as<int>());
+    }
+  }
+  printf("\n");
 }
