@@ -110,6 +110,11 @@ class Coroutine
     {
       free(stack_);
       stack_ = nullptr;
+      if(deleter_)
+      {
+        deleter_(arg_);
+        arg_ = nullptr;
+      }
     }
 
     Coroutine(const Coroutine&) = delete;
@@ -130,13 +135,12 @@ class Coroutine
       this->done_ = false;
       using arg_t = typename meta::Inspector<F>::arg_t;
       arg_ = new arg_t{std::forward<Args>(args)...};
+      deleter_ = [](void* data) { delete static_cast<arg_t*>(data); };
       fp_ = [f = std::forward<F>(f)](void* arg) {
         arg_t* param = static_cast<arg_t*>(arg);
         std::apply(f, *param);
-        delete param; // free `arg_`
-        param = nullptr;
       };
-      // skip 6 register r12~r15 and rbx rbp, assign next instruction to rip
+      // skip 6 registers r12~r15 and rbx rbp, assign next instruction to rip
       *((void**)((char*)new_sp_ + 6 * 8)) = (void*)call_member_function;
       new_sp_ = switch_stack(this, new_sp_, arg_);
     }
@@ -189,6 +193,7 @@ class Coroutine
     void* stack_{nullptr};
     bool done_{false};
     std::function<void(void*)> fp_;
+    std::function<void(void*)> deleter_;
     void* arg_{nullptr};
     const void* res_{nullptr};
 
@@ -252,7 +257,7 @@ int main()
     co.resume();
     if(!_.is_finished())
     {
-      printf("%d\t", _.as<int>());
+      printf("%d ", _.as<int>());
     }
   }
   printf("\n");
