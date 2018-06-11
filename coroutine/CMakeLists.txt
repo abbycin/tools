@@ -15,4 +15,4 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   set(SWITCH_STACK switch_stack_win.asm)
 endif()
 
-add_executable(coroutine main.cpp ${SWITCH_STACK})
+add_executable(coroutine coroutine.h main.cpp ${SWITCH_STACK})

@@ -7,9 +7,7 @@
 
 #include <iostream>
 #include <map>
-#include <tuple>
-#include <functional>
-#include <type_traits>
+#include "../meta/function_traits.h"
 
 namespace nm
 {
@@ -47,35 +45,6 @@ namespace nm
   class FunctorMap
   {
     public:
-      template<typename> struct Inspector;
-      template<typename R, typename... Args>
-      struct Inspector<R(Args...)>
-      {
-        using arg_t = std::tuple<std::remove_reference_t<Args>...>;
-        using res_t = R;
-      };
-      template<typename R, typename... Args>
-      struct Inspector<R(*)(Args...)> : Inspector<R(Args...)> {};
-      template<typename R, typename... Args>
-      struct Inspector<R(&)(Args...)> : Inspector<R(Args...)> {};
-      template<typename R, typename Object, typename... Args>
-      struct Inspector<R(Object::*)(Args...)> : Inspector<R(Args...)> {};
-      template<typename R, typename Object, typename... Args>
-      struct Inspector<R(Object::*)(Args...) const> : Inspector<R(Args...)> {};
-      template<typename R, typename Object, typename... Args>
-      struct Inspector<R(Object::*)(Args...) volatile> : Inspector<R(Args...)> {};
-      template<typename R, typename Object, typename... Args>
-      struct Inspector<R(Object::*)(Args...) const volatile> : Inspector<R(Args...)> {};
-
-      // functor like
-      template<typename Lambda>
-      struct Inspector : Inspector<decltype(&Lambda::operator())> {};
-      template<typename Lambda>
-      struct Inspector<Lambda&> : Inspector<decltype(&Lambda::operator())> {};
-      template<typename Lambda>
-      struct Inspector<Lambda&&> : Inspector<Lambda&> {};
-
-    public:
       using Fp = std::function<void(void*, void*)>;
 
       FunctorMap() = default;
@@ -84,8 +53,8 @@ namespace nm
       void bind(const std::string& sig, F&& f)
       {
         auto fp = [f = std::forward<F>(f)](void* args, void* res) {
-          using arg_t = typename Inspector<F>::arg_t;
-          using res_t = typename Inspector<F>::res_t;
+          using arg_t = typename meta::Inspector<F>::arg_t;
+          using res_t = typename meta::Inspector<F>::res_t;
           using indices = std::make_index_sequence<std::tuple_size<arg_t>::value>;
           arg_t& arg = *static_cast<arg_t*>(args);
           res_t* tmp = static_cast<res_t*>(res);
