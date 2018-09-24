@@ -31,7 +31,7 @@ namespace nm
       template<typename Type>
       friend void co_call_member_function(Coroutine<Type>*, void*);
 
-      enum { Fixed_Stack_Size = 64 * 1024};
+      enum { Fixed_Stack_Size = 4 * 1024};
 
       class Iterator
       {
@@ -52,6 +52,7 @@ namespace nm
           {
             this->co_ = rhs.co_;
             rhs.co_ = nullptr;
+            return *this;
           }
 
           bool operator== (const Iterator& rhs)
@@ -66,7 +67,8 @@ namespace nm
 
           Iterator& operator++ ()
           {
-            if(co_ != nullptr && co_->resume() < 0)
+            co_->resume();
+            if(co_->done())
             {
               co_ = nullptr;
             }
@@ -114,9 +116,9 @@ namespace nm
         this->~Coroutine();
         stack_ = malloc(Fixed_Stack_Size);
         memset(stack_, 0, Fixed_Stack_Size);
-        // call pop in `switch_stack` will grow rsp, here I reserve 8k space for push
+        // call pop in `switch_stack` will grow rsp, here I reserve 1k space for push
         // and I don't check alignment, you can adjust by using std::align since C++11
-        new_sp_ = (char*)stack_ + 8192;
+        new_sp_ = (char*)stack_ + 1024;
 
         this->done_ = false;
         using arg_t = typename meta::Inspector<F>::arg_t;
@@ -144,14 +146,20 @@ namespace nm
 
       Iterator begin()
       {
-        Iterator iter{this};
-        ++iter;
-        return iter;
+        if(new_sp_)
+        {
+          this->resume();
+          if(this->done())
+          {
+            return {nullptr};
+          }
+        }
+        return {this};
       }
 
       Iterator end()
       {
-        return {};
+        return {nullptr};
       }
 
     private:
@@ -163,10 +171,9 @@ namespace nm
       void* arg_{nullptr};
       std::optional<T> data_{};
 
-      void done()
+      bool done()
       {
-        done_ = true;
-        this->yield();
+        return done_;
       }
 
       T& data()
@@ -174,17 +181,18 @@ namespace nm
         return data_.value(); // let it throw
       }
 
-      int resume()
+      void resume()
       {
         new_sp_ = switch_stack(nullptr, new_sp_, nullptr);
-        return done_ ? -1 : 0;
       }
 
       void agent(void* ctx)
       {
         new_sp_ = switch_stack(nullptr, ctx, nullptr);
         fp_(arg_);
-        this->done();
+        done_ = true;
+        data_.reset();
+        this->yield();
       }
   };
 
