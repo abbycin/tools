@@ -31,7 +31,7 @@ namespace nm
       template<typename Type>
       friend void co_call_member_function(Coroutine<Type>*, void*);
 
-      enum { Fixed_Stack_Size = 4 * 1024};
+      enum { Fixed_Stack_Size = 8 * 1024};
 
       class Iterator
       {
@@ -116,9 +116,9 @@ namespace nm
         this->~Coroutine();
         stack_ = malloc(Fixed_Stack_Size);
         memset(stack_, 0, Fixed_Stack_Size);
-        // call pop in `switch_stack` will grow rsp, here I reserve 1k space for push
+        // call pop in `switch_stack` will grow rsp, here I reserve 4k space for push
         // and I don't check alignment, you can adjust by using std::align since C++11
-        new_sp_ = (char*)stack_ + 1024;
+        new_sp_ = (char*)stack_ + 4096;
 
         this->done_ = false;
         using arg_t = typename meta::Inspector<F>::arg_t;

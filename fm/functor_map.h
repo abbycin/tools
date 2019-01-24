@@ -149,7 +149,7 @@ namespace nm
         types_<res_t*, arg_t>.insert({ sig, nullptr });
       }
 
-      template<typename R, typename... Args>
+      template<typename R = void, typename... Args>
       R call(const std::string& sig, Args&&... args)
       {
         auto params = std::make_tuple(std::forward<Args>(args)...);

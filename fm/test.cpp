@@ -38,7 +38,7 @@ int main()
   fm.call<string>("none exist");
   cout << fm.call<int>("lambda", 1, 2) << '\n';
   cout << fm.call<string>("lambda2", string{"hello "}, string{"world"}) << '\n';
-  fm.call<void>("void_arg_res");
+  fm.call("void_arg_res");
   cout << fm.call<const char*>("void_arg") << '\n';
   cout << fm.call<string>("free_function", 233) << '\n';
   cout << fm.call<string>("static_member_function") << '\n';
