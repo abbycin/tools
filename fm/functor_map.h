@@ -9,7 +9,6 @@
 #define FUNCTOR_MAP_H_
 
 #include <functional>
-#include <list>
 #include <map>
 #include <mutex>
 #include <string>
@@ -126,59 +125,80 @@ namespace nm
       }
 
       template<typename F>
-      void bind(const std::string& sig, F&& f)
+      bool bind(const std::string& name, F&& f)
       {
+        if(functors_.count(name) > 0)
+        {
+          return false;
+        }
         using inspector = meta::Inspector<F>;
         using arg_t = typename inspector::arg_t;
         using res_t = typename inspector::res_t;
-        if (functors_.count(sig) <= 0)
-        {
-          tidy_.push_back([sig] {
-            types_<res_t*, arg_t>.erase(sig);
-          });
-        }
         auto fp = [f = std::forward<F>(f)](void* args, void* res) {
           using indices = std::make_index_sequence<std::tuple_size<arg_t>::value>;
           arg_t& arg = *static_cast<arg_t*>(args);
           res_t* tmp = static_cast<res_t*>(res);
           meta::call_impl<res_t>::invoke(tmp, f, arg, indices{});
         };
-        functors_[sig] = std::move(fp);
+        functors_[name] = std::move(fp);
         std::lock_guard<std::mutex> lg{ mtx_ };
         // use res_t* for void type
-        types_<res_t*, arg_t>.insert({ sig, nullptr });
+        types_<res_t*, arg_t>.insert({ name, nullptr });
+        tidy_[name] = [name] {
+          types_<res_t*, arg_t>.erase(name);
+        };
+        return true;
       }
 
       template<typename R = void, typename... Args>
-      R call(const std::string& sig, Args&&... args)
+      R call(const std::string& name, Args&&... args)
       {
         auto params = std::make_tuple(std::forward<Args>(args)...);
-        if(functors_.find(sig) == functors_.end())
+        auto iter = functors_.find(name);
+        if(iter == functors_.end())
         {
           return R();
         }
-        if (types_<R*, std::tuple<Args...>>.count(sig) <= 0)
+        if (types_<R*, std::tuple<Args...>>.count(name) <= 0)
         {
           throw std::runtime_error("parameter mismatch");
         }
-        auto& fp = functors_[sig];
-        return meta::call_impl<R>::call(fp, params);
+        return meta::call_impl<R>::call(iter->second, params);
+      }
+
+      bool contain(const std::string& name)
+      {
+        return functors_.count(name) > 0;
+      }
+
+      bool remove(const std::string& name)
+      {
+        if(!this->contain(name))
+        {
+          return false;
+        }
+        functors_.erase(name);
+        std::lock_guard<std::mutex> lg{mtx_};
+        auto iter = tidy_.find(name);
+        iter->second();
+        tidy_.erase(iter);
+        return true;
       }
 
       void clear()
       {
         functors_.clear();
-        std::lock_guard<std::mutex> lg{ mtx_ };
-        for (auto& c : tidy_)
+        std::lock_guard<std::mutex> lg{mtx_};
+        for(auto& c: tidy_)
         {
-          c();
+          c.second();
         }
         tidy_.clear();
       }
 
     private:
       std::map<std::string, Fp> functors_;
-      std::list<std::function<void()>> tidy_;
+      std::map<std::string, std::function<void()>> tidy_;
       static inline std::mutex mtx_;
       // vs2017 bug: https://developercommunity.visualstudio.com/content/problem/261624/multiple-initializations-of-inline-static-data-mem.html
       template<typename R, typename... Args> static inline std::map<std::string, std::tuple<R, Args...>*> types_{};
