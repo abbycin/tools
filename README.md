@@ -21,6 +21,7 @@ header-only libraries written in modern C++ (11, 14, 17, 2a).
 |[string_ext](./string_ext)| extended std::string |
 |[threadpool](./threadpool)| thread pool implementation via std::thread and lock-based task queue |
 |[variant](./variant) | variant implementation for C++11 |
+|[optional](./optional) | optional implementation for C++11 |
 |[typelist.cpp](./typelist.cpp) | loki-like typelist implemented by modern C++ |
 
 ### LICENSE
