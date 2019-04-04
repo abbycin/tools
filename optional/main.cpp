@@ -10,14 +10,14 @@
 
 struct Bar
 {
-  explicit Bar(int z) : z_{ z } {}
+  explicit Bar(int z) : z_{z} {}
   virtual ~Bar() {}
   int z_;
 };
 
 struct Foo : Bar
 {
-  Foo(int x, int y, int z) : Bar{ z }, x_ { x }, y_{ y } {}
+  Foo(int x, int y, int z) : Bar{z}, x_{x}, y_{y} {}
   int x_;
   int y_;
 };
@@ -26,11 +26,11 @@ int main()
 {
   std::cerr << std::boolalpha;
 
-  Optional<Bar> b{ Bar{1} };
+  Optional<Bar> b{Bar{1}};
   Optional<Bar> h = b;
-  Optional<Foo> o{ Foo{ 1, 2, 3 } };
+  Optional<Foo> o{1, 2, 3};
 
-  Optional<Foo> l{Foo{ 3, 2, 1 }};
+  Optional<Foo> l{Foo{3, 2, 1}};
   std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
   o = std::move(l);
@@ -41,7 +41,7 @@ int main()
 
   std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
-  l = Foo{ 2, 2, 2 };
+  l = Foo{2, 2, 2};
   o = std::move(l);
   std::cerr << (bool)l << '\t' << o->x_ << '\n';
 

@@ -10,7 +10,6 @@
 
 #include <type_traits>
 #include <stdexcept>
-#include <iostream>
 
 template<typename T>
 class Optional
@@ -35,6 +34,12 @@ public:
   {
  
     this->move(std::move(t));
+  }
+
+  template<typename... Args>
+  explicit Optional(Args&&... args) : Optional{}
+  {
+    this->emplace(std::forward<Args>(args)...);
   }
 
   Optional(const Optional& rhs) : Optional{}
