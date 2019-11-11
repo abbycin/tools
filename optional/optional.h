@@ -66,20 +66,34 @@ public:
 
   Optional& operator= (const Optional& rhs)
   {
-    if(this != &rhs && rhs.valid_)
+    if(this != &rhs)
     {
-      this->assign(*rhs);
+      if(rhs.valid_)
+      {
+        this->assign(*rhs);
+      }
+      else
+      {
+        this->clear();
+        this->valid_ = rhs.valid_;
+      }
     }
     return *this;
   }
 
   Optional& operator= (Optional&& rhs) noexcept
   {
-    if(this != &rhs && rhs.valid_)
+    if(this != &rhs)
     {
-      this->move(std::move(*rhs));
-      rhs.clear();
-      rhs.valid_ = false;
+      if(rhs.valid_)
+      {
+        this->move(std::move(*rhs));
+      }
+      else
+      {
+        this->clear();
+        this->valid_ = rhs.valid_;
+      }
     }
     return *this;
   }

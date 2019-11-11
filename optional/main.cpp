@@ -47,4 +47,11 @@ int main()
 
   Optional<Foo> m = o;
   std::cerr << (bool)m << '\t' << m->x_ << '\n';
+
+  Optional<int> io{1};
+  Optional<int> ha{};
+  io = Optional<int>();
+  std::cerr << (bool)io << '\n';
+  io = ha;
+  std::cerr << (bool)io << '\n';
 }
