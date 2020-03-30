@@ -20,11 +20,11 @@ int main()
   if(!tree.insert(3, 9))
     std::cout << "update value of key " << 3 << " to " << 9 << "\n";
   // find
-  auto iter = tree.get(3);
+  auto iter = tree.find(3);
   // delete
-  if(iter)
+  if(iter != tree.end())
   {
-    std::cout << "remove value: " << *iter;
+    std::cout << "remove value: " << iter->first << ", " << iter->second;
     tree.remove(iter);
     if(!tree.remove(3))
       std::cout << " Ok.\n";
@@ -34,16 +34,16 @@ int main()
   else
     std::cout << "not found\n";
   nm::RBtree<std::string, std::string> tree1{{"id", "abby"}, {"site", "isliberty.me"}};
-  auto iter1 = tree1.get("site");
-  if(!iter1)
+  auto iter1 = tree1.find("site");
+  if(iter1 == tree1.end())
     std::cout << "not found\n";
   else
-    std::cout << *iter1 << std::endl;
-  iter1 = tree1.get("+1s");
-  if(!iter1)
+    std::cout << iter1->second << std::endl;
+  iter1 = tree1.find("+1s");
+  if(iter1 == tree1.end())
     std::cout << "-1s\n";
 
-  nm::RBtree<int, int> {
+  nm::RBtree<int, int> lt{
     {1, 0},
     {2, 0},
     {5, 0},
@@ -54,5 +54,10 @@ int main()
     {15, 0},
     {4, 0}
   };
+
+  for(auto& i: lt)
+  {
+    std::cerr << i.first << ":" << i.second << '\n';
+  }
   return 0;
 }

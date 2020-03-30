@@ -82,11 +82,13 @@ namespace nm
         if(root_ == nullptr)
         {
           root_ = new Node(std::forward<U>(u), nullptr);
+          tail_ = root_;
         }
         else
         {
-          auto tmp = new Node(std::forward<U>(u), root_->next);
-          root_->next = tmp;
+          auto tmp = new Node(std::forward<U>(u), nullptr);
+          tail_->next = tmp;
+          tail_ = tmp;
         }
       }
 
@@ -109,10 +111,12 @@ namespace nm
           delete root_;
           root_ = tmp;
         }
+        root_ = tail_ = nullptr;
       }
 
     private:
       Node* root_;
+      Node* tail_;
   };
 }
 
@@ -123,5 +127,7 @@ int main()
   l.push(3809.929);
   l.push("ha??");
   for(auto& x: l)
+  {
     std::cout << x << '\n';
+  }
 }

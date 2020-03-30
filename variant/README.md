@@ -1,7 +1,7 @@
 # A Simple Single-Header Only `variant`
 
 ## features
-- single header only library
+- header only library
 - simple `set/operator=` operations
 - also a `emplace` method
 - four ways for visiting underlying object

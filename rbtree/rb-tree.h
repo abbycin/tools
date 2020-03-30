@@ -8,9 +8,8 @@
 #ifndef RED_BLACK_TREE_H_
 #define RED_BLACK_TREE_H_
 
-#ifdef DEBUG
-#include <iostream>
-#endif
+#include <functional>
+#include <stack>
 
 namespace nm
 {
@@ -29,17 +28,39 @@ namespace nm
         node* lhs;
         node* rhs;
         Color color;
-        Key key;
-        Val val;
+        std::pair<Key, Val> data;
         node()
           : parent(nullptr), lhs(nullptr),
-            rhs(nullptr), color(RED),
-            key(), val()
+            rhs(nullptr), color(RED), data()
         {}
         node(const Key& k, const Val& v)
           : parent(nullptr), lhs(nullptr),
-            rhs(nullptr), color(RED), key(k), val(v)
+            rhs(nullptr), color(RED), data{k, v}
         {}
+
+        Key& key()
+        {
+          return data.first;
+        }
+        std::pair<Key, Val>* data_ptr()
+        {
+          return &data;
+        }
+
+        const std::pair<Key, Val>* const_data_ptr() const
+        {
+          return &data;
+        }
+
+        std::pair<Key, Val>& data_ref()
+        {
+          return data;
+        }
+
+        const std::pair<Key, Val>& const_data_ref() const
+        {
+          return data;
+        }
       };
       struct rbnode
       {
@@ -64,47 +85,63 @@ namespace nm
     public:
       class iterator
       {
-        public:
-          iterator()
-            : data_(nullptr)
-          {}
-          ~iterator() = default;
+        friend class RBtree;
 
-          bool operator== (const iterator& rhs)
+      public:
+        std::pair<Key, Val>& operator*()
+        {
+          return data_->data_ref();
+        }
+
+        const std::pair<Key, Val>& operator* () const
+        {
+          return data_->const_data_ref();
+        }
+
+        std::pair<Key, Val>* operator->()
+        {
+          return data_->data_ptr();
+        }
+
+        const std::pair<Key, Val>* operator->() const
+        {
+          return data_->const_data_pr();
+        }
+
+        iterator& operator++()
+        {
+          if(data_ == tree_->root_->nil)
           {
-            return data_ == rhs.data_;
+            throw std::runtime_error("iterator is empty");
           }
+          data_ = tree_->successor(tree_->root_, data_);
+          return *this;
+        }
 
-          explicit operator bool () const
-          {
-            return data_ != nullptr;
-          }
+        friend bool operator== (const iterator& l, const iterator& r)
+        {
+          return l.data_ == r.data_;
+        }
 
-          bool operator! () const
-          {
-            return data_ == nullptr;
-          }
+        friend bool operator!= (const iterator l, const iterator& r)
+        {
+          return !(l == r);
+        }
 
-          const Val& operator* () const
-          {
-            return data_->val;
-          }
+      private:
+        RBtree* tree_;
+        node* data_;
 
-        protected:
-          friend class RBtree;
+        iterator(RBtree* tree, node* n)
+          : tree_{tree}, data_{n}
+        {
+        }
 
-          node* data() const
-          {
-            return data_;
-          }
-          iterator(node* x)
-            : data_(x)
-          {}
-
-        private:
-          node* data_;
+        node* data() const
+        {
+          return data_;
+        }
       };
-
       RBtree()
         : root_(new rbnode), size_(0), cmp_()
       {
@@ -113,53 +150,92 @@ namespace nm
         : RBtree()
       {
         for(const auto& x: rhs)
+        {
           insert(x);
+        }
       }
       ~RBtree()
       {
-        this->clear(root_, root_->root);
+        this->clear();
         delete root_;
         root_ = nullptr;
-#ifdef DEBUG
-        std::cout << "---------------------------------------------\n";
-#endif
+      }
+
+      iterator begin()
+      {
+        return {this, find_min(root_, root_->root)};
+      }
+
+      iterator end()
+      {
+        return {this, root_->nil};
       }
 
       bool insert(const std::pair<Key, Val>& rhs)
       {
-        return insert(rhs.first, rhs.second);
+        if(insert(root_, new node{rhs.first, rhs.second}))
+        {
+          size_ += 1;
+          return true;
+        }
+        return false;
       }
 
       bool insert(const Key& key, const Val& val)
       {
-        bool res = this->insert(root_, new node(key, val));
-        if(res)
-          ++size_;
-        return res;
+        return insert({key, val});
       }
 
       bool remove(const Key& key)
       {
-        node* res = this->find(root_, key);
-        if(res == nullptr)
-          return false;
-        this->remove(root_, res);
-        --size_;
-        return true;
+        auto res = this->find(key);
+        return this->remove(res);
       }
 
       bool remove(const iterator& iter)
       {
-        if(!iter)
+        if(iter == end())
+        {
           return false;
+        }
         this->remove(root_, iter.data());
-        --size_;
+        size_ -= 1;
         return true;
       }
 
-      iterator get(const Key& key)
+      iterator find(const Key& key)
       {
-        return iterator{this->find(root_, key)};
+        return iterator{this, this->find(root_, key)};
+      }
+
+      iterator prev(const Key& key)
+      {
+        auto r = find(key);
+        return prev(r);
+      }
+
+      iterator prev(const iterator& iter)
+      {
+        if(iter == end())
+        {
+          return end();
+        }
+        return {predecessor(*iter)};
+      }
+
+      iterator next(const Key& key)
+      {
+        auto r = find(key);
+        return next(r);
+      }
+
+      iterator next(const iterator& iter)
+      {
+        if(iter == end())
+        {
+          return end();
+        }
+        return {successor(iter.data())};
       }
 
       size_t size() const
@@ -169,7 +245,7 @@ namespace nm
 
       void clear()
       {
-        this->clear(root_, root_->root);
+        this->clear(root_);
         size_ = 0;
       }
 
@@ -245,6 +321,34 @@ namespace nm
         while(x->lhs != t->nil)
         {
           x = x->lhs;
+        }
+        return x;
+      }
+
+      node* find_max(rbnode* t, node* x)
+      {
+        while(x->rhs != t->nil)
+        {
+          x = x->rhs;
+        }
+        return x;
+      }
+
+      node* predecessor(rbnode* t, node* x)
+      {
+        if(x->lhs != t->nil)
+        {
+          x = find_max(t, x->lhs);
+        }
+        else
+        {
+          node* tmp = x->parent;
+          while(tmp != t->nil && x != tmp->lhs)
+          {
+            x = tmp;
+            tmp = x->parent;
+          }
+          x = tmp;
         }
         return x;
       }
@@ -434,19 +538,20 @@ namespace nm
         while(x != t->nil)
         {
           y = x;
-          if(cmp_(z->key, x->key))
+          if(cmp_(z->key(), x->key()))
           {
             x = x->lhs;
           }
-          else if(cmp_(x->key, z->key))
+          else if(cmp_(x->key(), z->key()))
           {
             x = x->rhs;
           }
           else
           {
+#if 0
             x->val = z->val; // replace old value
+#endif
             delete z;
-            z = nullptr;
             return false;
           }
         }
@@ -455,7 +560,7 @@ namespace nm
         {
           t->root = z;
         }
-        else if(cmp_(z->key, y->key))
+        else if(cmp_(z->key(), y->key()))
         {
           y->lhs = z;
         }
@@ -505,9 +610,10 @@ namespace nm
           y->color = z->color;
         }
         delete z;
-        z = nullptr;
         if(color == BLACK)
+        {
           delete_fixup(t, x);
+        }
       }
 
       node* find(rbnode* t, const Key& key)
@@ -515,35 +621,40 @@ namespace nm
         node* tmp = t->root;
         while(tmp != t->nil)
         {
-          if(cmp_(tmp->key, key))
+          if(cmp_(tmp->key(), key))
+          {
             tmp = tmp->rhs;
-          else if(cmp_(key, tmp->key))
+          }
+          else if(cmp_(key, tmp->key()))
+          {
             tmp = tmp->lhs;
+          }
           else
+          {
             return tmp;
+          }
         }
-        return nullptr;
+        return root_->nil;
       }
 
-      void clear(rbnode* t, node*& root)
+      void clear(rbnode* t)
       {
-        node* tmp = root;
-        if(tmp != t->nil)
+        std::stack<node*> st;
+        st.push(t->root);
+        while(!st.empty())
         {
-          if(tmp->lhs != t->nil)
-            clear(t, tmp->lhs);
-          if(tmp->rhs != t->nil)
-            clear(t, tmp->rhs);
-#ifdef DEBUG
-          std::cout << tmp->key << " => "
-            << (tmp->color == RED ? "\e[31mred\e[0m" : "\e[7mblack\e[0m")
-            << (tmp->parent == t->nil ? " (\e[32mroot\e[0m)" : "")
-            << std::endl;
-#endif
-          delete tmp;
-          tmp = nullptr;
+          node* n = st.top();
+          st.pop();
+          if(n->lhs != t->nil)
+          {
+            st.push(n->lhs);
+          }
+          if(n->rhs != t->nil)
+          {
+            st.push(n->rhs);
+          }
+          delete n;
         }
-        root = t->nil;
       }
   };
 }
