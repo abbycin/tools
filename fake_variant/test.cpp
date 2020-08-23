@@ -16,18 +16,15 @@ int main()
 {
   struct NonCopyMoveable
   {
-    NonCopyMoveable(int x)
-      : data_(x)
-    {}
+    NonCopyMoveable(int x) : data_(x) {}
     NonCopyMoveable(const NonCopyMoveable&) = delete;
     NonCopyMoveable(NonCopyMoveable&&) = delete;
-    NonCopyMoveable& operator= (const NonCopyMoveable&) = delete;
-    NonCopyMoveable& operator= (NonCopyMoveable&&) = delete;
+    NonCopyMoveable& operator=(const NonCopyMoveable&) = delete;
+    NonCopyMoveable& operator=(NonCopyMoveable&&) = delete;
     int data_;
   };
   // ignore extra `int`
-  nm::FakeVariant<int, int, NonCopyMoveable, int,
-    const char*, double, vector<string>> va;
+  nm::FakeVariant<int, int, NonCopyMoveable, int, const char*, double, vector<string>> va;
   va.set<int>(10);
   va.set<NonCopyMoveable>(309);
   va.set<const char*>("+1s");
@@ -35,8 +32,7 @@ int main()
   // call `set(const T&)`
   va.set<vector<string>>({"old", "value"});
   // call `set(Para&&...)`
-  auto res = va.set<vector<string>, std::initializer_list<string>>
-    ({"this", " is", " a", " test."});
+  auto res = va.set<vector<string>, std::initializer_list<string>>({"this", " is", " a", " test."});
   if(!res)
     cout << "override exist value!\n";
   cout << va.get<int>() << endl;

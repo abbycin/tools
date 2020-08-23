@@ -3,11 +3,11 @@
 header-only libraries written in modern C++ (11, 14, 17, 2a).
 
 
-|item| describe |
+|item| description |
 |-|-|
+|[bloom](./bloom)| nαïve bloom filter |
 |[cfg](./cfg)| hash table |
 |[channel](./channel) | [Rust](https://www.rust-lang.org)-like [channel](https://doc.rust-lang.org/std/sync/mpsc/fn.channel.html) implementation based on lock-free mpsc queue |
-|[clp](./clp) | C++17  feature test |
 |[coroutine](./coroutine) | coroutine impl from scratch, demonstrate how to impl your own coroutine |
 |[crypt](./crypt) | toy |
 |[fake_variant](./fake_variant)| tuple-like class based on multi-inherit |

@@ -11,170 +11,223 @@ namespace nm
 {
   namespace meta
   {
-    template<typename...> struct TypeList {};
-    template<> struct TypeList<> {};
+    template<typename...>
+    struct TypeList
+    {
+    };
+    template<>
+    struct TypeList<>
+    {
+    };
 
-    template<typename> struct Len;
-    template<typename... Args> struct Len<TypeList<Args...>>
+    template<typename>
+    struct Len;
+    template<typename... Args>
+    struct Len<TypeList<Args...>>
     {
       constexpr static int value = sizeof...(Args);
     };
 
-    template<typename, typename> struct Append;
-    template<typename... L, typename... R> struct Append<TypeList<L...>, TypeList<R...>>
+    template<typename, typename>
+    struct Append;
+    template<typename... L, typename... R>
+    struct Append<TypeList<L...>, TypeList<R...>>
     {
       using type = TypeList<L..., R...>;
     };
-    template<typename T, typename... Args> struct Append<T, TypeList<Args...>>
+    template<typename T, typename... Args>
+    struct Append<T, TypeList<Args...>>
     {
       using type = TypeList<T, Args...>;
     };
-    template<typename T, typename... Args> struct Append<TypeList<Args...>, T>
+    template<typename T, typename... Args>
+    struct Append<TypeList<Args...>, T>
     {
       using type = TypeList<Args..., T>;
     };
 
-    template<typename, typename...> struct Remove;
-    template<typename T> struct Remove<T, TypeList<>>
+    template<typename, typename...>
+    struct Remove;
+    template<typename T>
+    struct Remove<T, TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename... U> struct Remove<T, TypeList<T, U...>>
+    template<typename T, typename... U>
+    struct Remove<T, TypeList<T, U...>>
     {
       using type = TypeList<U...>;
     };
-    template<typename T, typename Head, typename... Args> struct Remove<T, TypeList<Head, Args...>>
+    template<typename T, typename Head, typename... Args>
+    struct Remove<T, TypeList<Head, Args...>>
     {
       using type = typename Append<Head, typename Remove<T, TypeList<Args...>>::type>::type;
     };
 
-    template<typename, typename...> struct RemoveAll;
-    template<typename T> struct RemoveAll<T, TypeList<>>
+    template<typename, typename...>
+    struct RemoveAll;
+    template<typename T>
+    struct RemoveAll<T, TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename... U> struct RemoveAll<T, TypeList<T, U...>>
+    template<typename T, typename... U>
+    struct RemoveAll<T, TypeList<T, U...>>
     {
       using type = typename RemoveAll<T, TypeList<U...>>::type;
     };
-    template<typename T, typename Head, typename... Args> struct RemoveAll<T, TypeList<Head, Args...>>
+    template<typename T, typename Head, typename... Args>
+    struct RemoveAll<T, TypeList<Head, Args...>>
     {
       using type = typename Append<Head, typename RemoveAll<T, TypeList<Args...>>::type>::type;
     };
 
-    template<int I, typename TL> struct TypeAt;
-    template<typename T, typename... U> struct TypeAt<0, TypeList<T, U...>>
+    template<int I, typename TL>
+    struct TypeAt;
+    template<typename T, typename... U>
+    struct TypeAt<0, TypeList<T, U...>>
     {
       using type = T;
     };
-    template<int I, typename T, typename... Args> struct TypeAt<I, TypeList<T, Args...>>
+    template<int I, typename T, typename... Args>
+    struct TypeAt<I, TypeList<T, Args...>>
     {
       using type = typename TypeAt<I - 1, TypeList<Args...>>::type;
     };
 
-    template<typename, typename...> struct IsContain;
-    template<typename T> struct IsContain<T, TypeList<>>
+    template<typename, typename...>
+    struct IsContain;
+    template<typename T>
+    struct IsContain<T, TypeList<>>
     {
       constexpr static bool value = false;
     };
-    template<typename T, typename... U> struct IsContain<T, TypeList<T, U...>>
+    template<typename T, typename... U>
+    struct IsContain<T, TypeList<T, U...>>
     {
       constexpr static bool value = true;
     };
-    template<typename T, typename Head, typename... Args> struct IsContain<T, TypeList<Head, Args...>>
+    template<typename T, typename Head, typename... Args>
+    struct IsContain<T, TypeList<Head, Args...>>
     {
       constexpr static bool value = IsContain<T, TypeList<Args...>>::value;
     };
 
-    template<typename, typename> struct IndexOf;
-    template<typename T> struct IndexOf<T, TypeList<>>
+    template<typename, typename>
+    struct IndexOf;
+    template<typename T>
+    struct IndexOf<T, TypeList<>>
     {
       constexpr static int value = -1;
     };
-    template<typename T, typename... U> struct IndexOf<T, TypeList<T, U...>>
+    template<typename T, typename... U>
+    struct IndexOf<T, TypeList<T, U...>>
     {
       constexpr static int value = 0;
     };
-    template<typename T, typename Head, typename... Args> struct IndexOf<T, TypeList<Head, Args...>>
+    template<typename T, typename Head, typename... Args>
+    struct IndexOf<T, TypeList<Head, Args...>>
     {
-      private:
-        constexpr static bool have_t = IsContain<T, TypeList<Head, Args...>>::value;
-      public:
-        constexpr static int value = have_t
-          ? 1 + IndexOf<T, TypeList<Args...>>::value
-          : -1;
+    private:
+      constexpr static bool have_t = IsContain<T, TypeList<Head, Args...>>::value;
+
+    public:
+      constexpr static int value = have_t ? 1 + IndexOf<T, TypeList<Args...>>::value : -1;
     };
 
-    template<typename New, typename Old, typename TL> struct Replace;
-    template<typename T, typename U> struct Replace<T, U, TypeList<>>
+    template<typename New, typename Old, typename TL>
+    struct Replace;
+    template<typename T, typename U>
+    struct Replace<T, U, TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename U, typename... Args> struct Replace<T, U, TypeList<U, Args...>>
+    template<typename T, typename U, typename... Args>
+    struct Replace<T, U, TypeList<U, Args...>>
     {
       using type = TypeList<T, Args...>;
     };
-    template<typename T, typename U, typename Head, typename... Args> struct Replace<T, U, TypeList<Head, Args...>>
+    template<typename T, typename U, typename Head, typename... Args>
+    struct Replace<T, U, TypeList<Head, Args...>>
     {
       using type = typename Append<Head, typename Replace<T, U, TypeList<Args...>>::type>::type;
     };
 
-    template<typename New, typename Old, typename TL> struct ReplaceAll;
-    template<typename T, typename U> struct ReplaceAll<T, U, TypeList<>>
+    template<typename New, typename Old, typename TL>
+    struct ReplaceAll;
+    template<typename T, typename U>
+    struct ReplaceAll<T, U, TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename U, typename... Args> struct ReplaceAll<T, U, TypeList<U, Args...>>
+    template<typename T, typename U, typename... Args>
+    struct ReplaceAll<T, U, TypeList<U, Args...>>
     {
       using type = typename ReplaceAll<T, U, TypeList<T, Args...>>::type;
     };
-    template<typename T, typename U, typename Head, typename... Args> struct ReplaceAll<T, U, TypeList<Head, Args...>>
+    template<typename T, typename U, typename Head, typename... Args>
+    struct ReplaceAll<T, U, TypeList<Head, Args...>>
     {
       using type = typename Append<Head, typename ReplaceAll<T, U, TypeList<Args...>>::type>::type;
     };
 
-    template<typename T, typename...> struct Reverse;
-    template<> struct Reverse<TypeList<>>
+    template<typename T, typename...>
+    struct Reverse;
+    template<>
+    struct Reverse<TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename... Args> struct Reverse<TypeList<T, Args...>>
+    template<typename T, typename... Args>
+    struct Reverse<TypeList<T, Args...>>
     {
       using type = typename Append<typename Reverse<TypeList<Args...>>::type, T>::type;
     };
 
-    template<typename...> struct PopFront;
-    template<typename T> struct PopFront<TypeList<T>>
+    template<typename...>
+    struct PopFront;
+    template<typename T>
+    struct PopFront<TypeList<T>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename... Args> struct PopFront<TypeList<T, Args...>>
+    template<typename T, typename... Args>
+    struct PopFront<TypeList<T, Args...>>
     {
       using type = TypeList<Args...>;
     };
 
-    template<typename...> struct PopBack;
-    template<typename T> struct PopBack<TypeList<T>>
+    template<typename...>
+    struct PopBack;
+    template<typename T>
+    struct PopBack<TypeList<T>>
     {
       using type = TypeList<>;
     };
-    template<typename... Args> struct PopBack<TypeList<Args...>>
+    template<typename... Args>
+    struct PopBack<TypeList<Args...>>
     {
       using type = typename Reverse<typename PopFront<typename Reverse<TypeList<Args...>>::type>::type>::type;
     };
 
-    template<typename...> struct Unique;
-    template<> struct Unique<TypeList<>>
+    template<typename...>
+    struct Unique;
+    template<>
+    struct Unique<TypeList<>>
     {
       using type = TypeList<>;
     };
-    template<typename T, typename... Args> struct Unique<TypeList<T, Args...>>
+    template<typename T, typename... Args>
+    struct Unique<TypeList<T, Args...>>
     {
-      using type = typename Append<TypeList<T>, typename Remove<T, typename Unique<TypeList<Args...>>::type>::type>::type;
+      using type =
+          typename Append<TypeList<T>, typename Remove<T, typename Unique<TypeList<Args...>>::type>::type>::type;
     };
 
-    template<size_t I, typename TL> struct for_each_helper;
-    template<size_t I, typename... Args> struct for_each_helper<I, TypeList<Args...>>
+    template<size_t I, typename TL>
+    struct for_each_helper;
+    template<size_t I, typename... Args>
+    struct for_each_helper<I, TypeList<Args...>>
     {
       template<typename F>
       constexpr static void call(F f)
@@ -183,56 +236,78 @@ namespace nm
         for_each_helper<I - 1, TypeList<Args...>>::call(f);
       }
     };
-    template<> struct for_each_helper<0, TypeList<>>
+    template<>
+    struct for_each_helper<0, TypeList<>>
     {
-      template<typename F> constexpr static void call(F) {}
+      template<typename F>
+      constexpr static void call(F)
+      {
+      }
     };
-    template<typename... Args> struct for_each_helper<0, TypeList<Args...>>
+    template<typename... Args>
+    struct for_each_helper<0, TypeList<Args...>>
     {
-      template<typename F> constexpr static void call(F) {}
-    };
-
-    template<typename TL> struct ForEach1;
-    template<typename... Args> struct ForEach1<TypeList<Args...>>
-    {
-      private:
-        constexpr static size_t size = sizeof...(Args);
-      public:
-        template<typename F>
-        constexpr static void call(F f)
-        {
-          for_each_helper<size, typename Reverse<TypeList<Args...>>::type>::call(f);
-        }
+      template<typename F>
+      constexpr static void call(F)
+      {
+      }
     };
 
-    template<typename TL> struct ForEach2;
-    template<typename T, typename... Args> struct ForEach2<TypeList<T, Args...>>
+    template<typename TL>
+    struct ForEach1;
+    template<typename... Args>
+    struct ForEach1<TypeList<Args...>>
     {
-      template<typename F> constexpr static void call(F f)
+    private:
+      constexpr static size_t size = sizeof...(Args);
+
+    public:
+      template<typename F>
+      constexpr static void call(F f)
+      {
+        for_each_helper<size, typename Reverse<TypeList<Args...>>::type>::call(f);
+      }
+    };
+
+    template<typename TL>
+    struct ForEach2;
+    template<typename T, typename... Args>
+    struct ForEach2<TypeList<T, Args...>>
+    {
+      template<typename F>
+      constexpr static void call(F f)
       {
         f(T{});
         ForEach2<TypeList<Args...>>::call(f);
       }
     };
-    template<> struct ForEach2<TypeList<>>
+    template<>
+    struct ForEach2<TypeList<>>
     {
-      template<typename F> constexpr static void call(F) {}
+      template<typename F>
+      constexpr static void call(F)
+      {
+      }
     };
 
-    template<typename... Args> struct overloaded : Args...
+    template<typename... Args>
+    struct overloaded : Args...
     {
       using Args::operator()...;
     };
 
-    template<typename... Args> overloaded(Args...) -> overloaded<Args...>;
+    template<typename... Args>
+    overloaded(Args...) -> overloaded<Args...>;
   }
 }
 
-template<typename T, typename U> struct is_same
+template<typename T, typename U>
+struct is_same
 {
   constexpr static bool value = false;
 };
-template<typename T> struct is_same<T, T>
+template<typename T>
+struct is_same<T, T>
 {
   constexpr static bool value = true;
 };
@@ -284,12 +359,8 @@ int main()
   using l6 = TypeList<int, long, double, const char*>;
   using std::cout;
 
-  auto vi = overloaded{
-      [](int) { cout << "int\n"; },
-      [](double) { cout << "double\n"; },
-      [](long) { cout << "long\n"; },
-      [](auto) { cout << "other\n"; }
-  };
+  auto vi = overloaded{[](int) { cout << "int\n"; }, [](double) { cout << "double\n"; }, [](long) { cout << "long\n"; },
+                       [](auto) { cout << "other\n"; }};
   ForEach1<l6>::call(vi);
   cout << '\n';
   ForEach2<l6>::call(vi);

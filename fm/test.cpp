@@ -8,15 +8,12 @@
 #include "functor_map.h"
 #include <iostream>
 
-std::string to_str(int x)
-{
-  return std::to_string(x);
-}
+std::string to_str(int x) { return std::to_string(x); }
 
 struct Foo
 {
   static std::string foo() { return __func__; }
-  int operator() (int x) { return x * x; }
+  int operator()(int x) { return x * x; }
 };
 
 int main()
@@ -27,7 +24,7 @@ int main()
 
   // bind
   fm.bind("lambda", [](int lhs, int rhs) { return lhs + rhs; });
-  fm.bind("lambda2", [](string lhs,  string rhs) { return lhs + rhs; });
+  fm.bind("lambda2", [](string lhs, string rhs) { return lhs + rhs; });
   fm.bind("void_arg_res", [] { std::cout << "void\n"; });
   fm.bind("void_arg", [] { return "666"; });
   fm.bind("free_function", to_str);

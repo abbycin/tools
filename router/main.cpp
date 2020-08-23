@@ -40,19 +40,10 @@ std::ostream& operator<<(std::ostream& os, const Pairs& m)
   return os;
 }
 
-template<typename T>
-struct add_space
-{
-  add_space(T t) : t_{t} {}
-
-  friend std::ostream& operator<<(std::ostream& os, const add_space<T>& t) { return os << t.t_ << ' '; }
-  T t_;
-};
-
 template<typename... Args>
 void print(Args&&... args)
 {
-  (cout << ... << add_space(args));
+  ((cout << args << ' '), ...);
   cout << '\n';
 }
 

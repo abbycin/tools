@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
   bit_map.reset();
   for(i = 0; i < max_scan; ++i)
     duplicate[i] = 0;
-  
+
   while(fscanf(fin, "%d\n", &n) != EOF)
   {
     if(n >= max_scan && n <= size)

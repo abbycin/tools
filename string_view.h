@@ -31,23 +31,22 @@ namespace nm
     constexpr static size_type npos = size_type(-1);
 
     // member functions
-    constexpr basic_string_view()
-      : data_{ nullptr }, len_{ 0 }
-    {}
+    constexpr basic_string_view() : data_{nullptr}, len_{0} {}
 
-    basic_string_view(const value_type* data)
-      : data_{ data }, len_{ data ? StringType::traits_type::length(data) : 0 }
-    {}
+    template<typename T>
+    explicit basic_string_view(const T& t) : data_{t.data()}, len_{t.size()}
+    {
+    }
 
-    constexpr basic_string_view(const value_type* data, size_type len)
-      : data_{ data }, len_{ len }
-    {}
+    basic_string_view(const std::string& s) : data_{s.data()}, len_{s.size()} {}
 
-    constexpr basic_string_view(const basic_string_view& rhs)
-      : data_{ rhs.data_ }, len_{ rhs.len_ }
-    {}
+    basic_string_view(const value_type* data) : data_{data}, len_{data ? StringType::traits_type::length(data) : 0} {}
 
-    basic_string_view& operator= (basic_string_view&& rhs) noexcept
+    constexpr basic_string_view(const value_type* data, size_type len) : data_{data}, len_{len} {}
+
+    constexpr basic_string_view(const basic_string_view& rhs) : data_{rhs.data_}, len_{rhs.len_} {}
+
+    basic_string_view& operator=(basic_string_view&& rhs) noexcept
     {
       if(this != &rhs)
       {
@@ -58,7 +57,7 @@ namespace nm
       return *this;
     }
 
-    basic_string_view& operator= (const basic_string_view& rhs)
+    basic_string_view& operator=(const basic_string_view& rhs)
     {
       if(this != &rhs)
       {
@@ -80,8 +79,10 @@ namespace nm
       len_ = len;
     }
 
+    operator std::string() { return {data_, len_}; }
+
     // element access
-    value_type at(size_type i) const
+    value_type& at(size_type i) const
     {
       if(i >= len_)
       {
@@ -90,67 +91,33 @@ namespace nm
       return data_[i];
     }
 
-    value_type operator[] (size_type i) const
-    {
-      return data_[i];
-    }
+    value_type operator[](size_type i) const { return data_[i]; }
 
-    const value_type* data() const
-    {
-      return data_;
-    }
+    void set(size_type i, value_type v) { data_[i] = v; }
 
-    const value_type* c_str() const
-    {
-      return data_;
-    }
+    const value_type* data() const { return data_; }
+
+    const value_type* c_str() const { return data_; }
 
     // iterators
-    const_iterator begin() const
-    {
-      return data_;
-    }
+    const_iterator begin() const { return data_; }
 
-    const_iterator end() const
-    {
-      return data_ + len_;
-    }
+    const_iterator end() const { return data_ + len_; }
 
-    const_reverse_iterator rbegin() const
-    {
-      return const_reverse_iterator(data_ + len_);
-    }
+    const_reverse_iterator rbegin() const { return const_reverse_iterator(data_ + len_); }
 
-    const_reverse_iterator rend() const
-    {
-      return const_reverse_iterator(data_);
-    }
+    const_reverse_iterator rend() const { return const_reverse_iterator(data_); }
 
     // capacity
-    bool empty() const
-    {
-      return len_ == 0;
-    }
+    bool empty() const { return len_ == 0; }
 
-    size_type size() const
-    {
-      return len_;
-    }
+    size_type size() const { return len_; }
 
-    size_type length() const
-    {
-      return len_;
-    }
+    size_type length() const { return len_; }
 
-    size_type max_size() const
-    {
-      return len_;
-    }
+    size_type max_size() const { return len_; }
 
-    size_type capacity() const
-    {
-      return len_;
-    }
+    size_type capacity() const { return len_; }
 
     // operations
     void clear()
@@ -176,15 +143,44 @@ namespace nm
       return r;
     }
 
-    void remove_prefix(size_type n)
+    basic_string_view& remove_prefix(size_type n)
     {
       data_ += n;
       len_ -= n;
+      return *this;
     }
 
-    void remove_suffix(size_type n)
+    basic_string_view& remove_suffix(size_type n)
     {
       len_ -= n;
+      return *this;
+    }
+
+    basic_string_view trim()
+    {
+      basic_string_view res = *this;
+      if(this->empty())
+      {
+        return {};
+      }
+
+      while(*res.data() == ' ' || *res.data() == '\r' || *res.data() == '\n' || *res.data() == '\t')
+      {
+        res.remove_prefix(1);
+      }
+      while(!res.empty())
+      {
+        auto tail = res.end() - 1;
+        if(*tail == ' ' || *tail == '\r' || *tail == '\n' || *tail == '\t')
+        {
+          res.remove_suffix(1);
+        }
+        else
+        {
+          break;
+        }
+      }
+      return res;
     }
 
     bool starts_with(const basic_string_view& x) const
@@ -197,7 +193,7 @@ namespace nm
       return ((len_ >= x.len_) && (cmp(data_ + (len_ - x.len_), x.data_, x.len_) == 0));
     }
 
-    basic_string_view substr(size_type pos, size_type size) const
+    basic_string_view substr(size_type pos, size_type size = npos) const
     {
       if(pos > this->size())
       {
@@ -207,7 +203,7 @@ namespace nm
       {
         size = this->size() - pos;
       }
-      return { data_ + pos, size };
+      return {data_ + pos, size};
     }
 
     size_type copy(value_type* s, size_type count, size_type pos = 0) const
@@ -280,7 +276,7 @@ namespace nm
       {
         return this->find(x.data()[0], pos);
       }
-      bool lookup[uchar_max + 1] = { false };
+      bool lookup[uchar_max + 1] = {false};
       build_table(x, lookup);
       for(size_type i = pos; i < this->size(); ++i)
       {
@@ -306,7 +302,7 @@ namespace nm
       {
         return this->find_first_not_of(x.data()[0], pos);
       }
-      bool lookup[uchar_max + 1] = { false };
+      bool lookup[uchar_max + 1] = {false};
       build_table(x, lookup);
       for(size_type i = pos; i < this->size(); ++i)
       {
@@ -344,7 +340,7 @@ namespace nm
       {
         return this->rfind(x.data()[0], pos);
       }
-      bool lookup[uchar_max + 1] = { false };
+      bool lookup[uchar_max + 1] = {false};
       build_table(x, lookup);
       for(size_type i = std::min(pos, this->size() - 1); i > 0; --i)
       {
@@ -371,7 +367,7 @@ namespace nm
       {
         return this->find_last_not_of(x.data()[0], pos);
       }
-      bool lookup[uchar_max + 1] = { false };
+      bool lookup[uchar_max + 1] = {false};
       build_table(x, lookup);
       for(; i > 0; --i)
       {
@@ -399,17 +395,14 @@ namespace nm
       return npos;
     }
 
-    std::string to_string()
-    {
-      return { data_, len_ };
-    }
+    std::string to_string() const { return {data_, len_}; }
 
     static int cmp(const value_type* l, const value_type* r, size_type n)
     {
       return StringType::traits_type::compare(l, r, n);
     }
 
-  protected:
+  private:
     const value_type* data_;
     size_type len_;
 
@@ -427,39 +420,27 @@ namespace nm
 
   using string_view = basic_string_view<std::string>;
 
-  bool operator== (const string_view& x, const string_view& y)
+  inline bool operator==(const string_view& x, const string_view& y)
   {
     auto r = string_view::cmp(x.data(), y.data(), std::min(x.size(), y.size()));
     return r == 0 && x.size() == y.size();
   }
 
-  inline bool operator!= (const string_view& x, const string_view& y)
-  {
-    return !(x == y);
-  }
+  inline bool operator!=(const string_view& x, const string_view& y) { return !(x == y); }
 
-  inline bool operator< (const string_view& x, const string_view& y)
+  inline bool operator<(const string_view& x, const string_view& y)
   {
     auto r = string_view::cmp(x.data(), y.data(), (x.size() < y.size() ? x.size() : y.size()));
     return ((r < 0) || ((r == 0) && (x.size() < y.size())));
   }
 
-  inline bool operator> (const string_view& x, const string_view& y)
-  {
-    return y < x;
-  }
+  inline bool operator>(const string_view& x, const string_view& y) { return y < x; }
 
-  inline bool operator<= (const string_view& x, const string_view& y)
-  {
-    return !(x > y);
-  }
+  inline bool operator<=(const string_view& x, const string_view& y) { return !(x > y); }
 
-  inline bool operator>= (const string_view& x, const string_view& y)
-  {
-    return !(x < y);
-  }
+  inline bool operator>=(const string_view& x, const string_view& y) { return !(x < y); }
 
-  inline std::ostream& operator<< (std::ostream& os, const string_view& v)
+  inline std::ostream& operator<<(std::ostream& os, const string_view& v)
   {
     os.write(v.data(), v.size());
     return os;
@@ -467,7 +448,34 @@ namespace nm
 
   constexpr string_view operator""_sv(const string_view::value_type* data, string_view::size_type len)
   {
-    return { data, len };
+    return {data, len};
+  }
+
+  inline int compare_i(const string_view& l, const string_view& r)
+  {
+    auto lb = l.begin();
+    auto rb = r.begin();
+    while(lb != l.end() && rb != r.end())
+    {
+      if(*lb != *rb && std::tolower(*lb) != std::tolower(*rb))
+      {
+        break;
+      }
+      ++lb;
+      ++rb;
+    }
+    if(l.size() == r.size())
+    {
+      return 0;
+    }
+    else if(l.size() < r.size())
+    {
+      return -1;
+    }
+    else
+    {
+      return 1;
+    }
   }
 }
 

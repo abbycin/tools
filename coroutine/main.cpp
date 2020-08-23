@@ -32,21 +32,23 @@ int main()
 
   {
     nm::Coroutine<int> co;
-    co.start([&co](int x) {
-      int first = 1;
-      co.yield(first);
+    co.start(
+        [&co](int x) {
+          int first = 1;
+          co.yield(first);
 
-      int second = 1;
-      co.yield(second);
+          int second = 1;
+          co.yield(second);
 
-      for(int i = 0; i < x; ++i)
-      {
-        int third = first + second;
-        first = second;
-        second = third;
-        co.yield(third);
-      }
-    }, 10);
+          for(int i = 0; i < x; ++i)
+          {
+            int third = first + second;
+            first = second;
+            second = third;
+            co.yield(third);
+          }
+        },
+        10);
 
     for(auto& iter: co)
     {

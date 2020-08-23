@@ -28,7 +28,7 @@ cmake --build .
 
 ### Doc
 
-Please go to my [blog post](https://note.isliberty.me/2018/06/02/a-coroutine-impl/)
+Please go to my [blog post](https://blog.isliberty.me/article/61)
 
 ### Bugs
 

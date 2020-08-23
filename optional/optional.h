@@ -15,26 +15,13 @@ template<typename T>
 class Optional
 {
 public:
-  Optional() : data_{}, valid_{false}
-  {
+  Optional() : data_{}, valid_{false} {}
 
-  }
+  ~Optional() { this->clear(); }
 
-  ~Optional()
-  {
-    this->clear();
-  }
+  explicit Optional(const T& t) : Optional{} { this->assign(t); }
 
-  explicit Optional(const T& t) : Optional{}
-  {
-    this->assign(t);
-  }
-
-  explicit Optional(T&& t) noexcept : Optional{}
-  {
- 
-    this->move(std::move(t));
-  }
+  explicit Optional(T&& t) noexcept : Optional{} { this->move(std::move(t)); }
 
   template<typename... Args>
   explicit Optional(Args&&... args) : Optional{}
@@ -42,29 +29,23 @@ public:
     this->emplace(std::forward<Args>(args)...);
   }
 
-  Optional(const Optional& rhs) : Optional{}
-  {
-    *this = rhs;
-  }
+  Optional(const Optional& rhs) : Optional{} { *this = rhs; }
 
-  Optional(Optional&& rhs) noexcept : Optional{}
-  {
-    *this = std::move(rhs);
-  }
+  Optional(Optional&& rhs) noexcept : Optional{} { *this = std::move(rhs); }
 
-  Optional& operator= (const T& t)
+  Optional& operator=(const T& t)
   {
     this->assign(t);
     return *this;
   }
 
-  Optional& operator= (T&& t)
+  Optional& operator=(T&& t)
   {
     this->move(std::move(t));
     return *this;
   }
 
-  Optional& operator= (const Optional& rhs)
+  Optional& operator=(const Optional& rhs)
   {
     if(this != &rhs)
     {
@@ -81,7 +62,7 @@ public:
     return *this;
   }
 
-  Optional& operator= (Optional&& rhs) noexcept
+  Optional& operator=(Optional&& rhs) noexcept
   {
     if(this != &rhs)
     {
@@ -99,7 +80,7 @@ public:
   }
 
   template<typename... Args, typename R = typename std::enable_if<std::is_constructible<T, Args...>::value>::type>
-  R emplace(Args&& ... args)
+  R emplace(Args&&... args)
   {
     if(!valid_)
     {
@@ -108,24 +89,15 @@ public:
     }
   }
 
-  explicit operator bool()
-  {
-    return valid_;
-  }
+  explicit operator bool() { return valid_; }
 
   operator T() = delete;
 
-  T& operator* ()
-  {
-    return *operator->();
-  }
+  T& operator*() { return *operator->(); }
 
-  const T& operator* () const
-  {
-    return *operator->();
-  }
+  const T& operator*() const { return *operator->(); }
 
-  T* operator-> ()
+  T* operator->()
   {
     if(!valid_)
     {
@@ -136,7 +108,7 @@ public:
 
   const T* operator->() const
   {
-    if (!valid_)
+    if(!valid_)
     {
       throw std::logic_error("invalid optional");
     }
@@ -162,15 +134,9 @@ private:
     new(this->raw()) T{std::move(t)};
   }
 
-  void* raw()
-  {
-    return reinterpret_cast<void*>(&data_);
-  }
+  void* raw() { return reinterpret_cast<void*>(&data_); }
 
-  const void* raw() const
-  {
-    return reinterpret_cast<const void*>(&data_);
-  }
+  const void* raw() const { return reinterpret_cast<const void*>(&data_); }
 
   void clear()
   {

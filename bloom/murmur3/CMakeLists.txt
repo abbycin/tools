@@ -1,0 +1,1 @@
+add_library(murmur3 MurmurHash3.h MurmurHash3.cpp)

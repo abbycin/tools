@@ -14,11 +14,10 @@ using namespace std;
 
 int main()
 {
-  auto f = [](int x)
-  {
+  auto f = [](int x) {
     this_thread::sleep_for(chrono::seconds(2));
     printf("%d\n", x * x);
-    return (x*x);
+    return (x * x);
   };
   nm::threadpool pool;
   pool.add_task(f, 1);
@@ -50,10 +49,7 @@ int main()
     cout << "get: " << fut.get() << endl;
   this_thread::sleep_for(chrono::seconds(3));
   cout << "--------------------------------------------------------\n";
-  auto f2 = [](int x)
-  {
-    cout << "tid: " << this_thread::get_id() << "\tdata: " << (x * 2) << endl;
-  };
+  auto f2 = [](int x) { cout << "tid: " << this_thread::get_id() << "\tdata: " << (x * 2) << endl; };
   nm::threadpool pool2(std::launch::deferred);
   pool2.add_task(f2, -1);
   pool2.add_task(f2, -2);
@@ -71,7 +67,7 @@ int main()
     cout << "Exception: " << e.what() << endl;
   }
   nm::threadpool pool3(std::launch::deferred);
-  pool3.pause();  // set `is_start_` flag in destructor
+  pool3.pause(); // set `is_start_` flag in destructor
   pool3.wait();
   cout << "done.\n";
 }

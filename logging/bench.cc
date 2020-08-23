@@ -4,39 +4,35 @@
 
 class ThreadGroup
 {
-  public:
-    ThreadGroup()
-      : tg_{}
-    {}
+public:
+  ThreadGroup() : tg_{} {}
 
-    ~ThreadGroup()
-    {
-      this->join_all();
-    }
+  ~ThreadGroup() { this->join_all(); }
 
-    template<typename F> void spwan(F&& f)
-    {
-      tg_.emplace_back(std::forward<F>(f));
-    }
+  template<typename F>
+  void spwan(F&& f)
+  {
+    tg_.emplace_back(std::forward<F>(f));
+  }
 
-    void join_all()
+  void join_all()
+  {
+    try
     {
-      try
+      for(auto& t: tg_)
       {
-        for(auto& t: tg_)
-        {
-          if(t.joinable())
-            t.join();
-        }
-      }
-      catch(...)
-      {
-        // swallow
+        if(t.joinable())
+          t.join();
       }
     }
+    catch(...)
+    {
+      // swallow
+    }
+  }
 
-  private:
-    std::vector<std::thread> tg_;
+private:
+  std::vector<std::thread> tg_;
 };
 
 void foo()
@@ -51,10 +47,7 @@ void foo()
   }
 }
 
-auto now()
-{
-  return std::chrono::high_resolution_clock::now();
-}
+auto now() { return std::chrono::high_resolution_clock::now(); }
 
 template<typename T>
 auto duration(const T& dur)

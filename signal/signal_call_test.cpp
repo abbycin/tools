@@ -10,16 +10,10 @@
 
 class Test
 {
-  public:
-    void p(int x)
-    {
-      std::cout << x << std::endl;
-    }
+public:
+  void p(int x) { std::cout << x << std::endl; }
 
-    void show(int x)
-    {
-      std::cout << "show => " << x << std::endl;
-    }
+  void show(int x) { std::cout << "show => " << x << std::endl; }
 };
 
 int main()
@@ -33,12 +27,11 @@ int main()
   s.disconnect(&Test::show);
   s.emit(10);
 
-  nm::Signal<int(*)(int)> s1;
-  auto handle = s1.connect([](int x) -> int
-      {
-        std::cout << x << std::endl;
-        return x;
-      });
+  nm::Signal<int (*)(int)> s1;
+  auto handle = s1.connect([](int x) -> int {
+    std::cout << x << std::endl;
+    return x;
+  });
   s1.emit(11);
   s1.disconnect(handle);
   s1.emit(12);

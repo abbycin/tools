@@ -14,7 +14,7 @@
 
 void sender(Sender<size_t> tx, size_t data, size_t limit)
 {
-  for (; limit > 0;)
+  for(; limit > 0;)
   {
     limit -= 1;
     tx.send(data);
@@ -39,10 +39,7 @@ void receiver(Receiver<size_t> rx)
   printf("receiver done.\n");
 }
 
-auto now()
-{
-  return std::chrono::high_resolution_clock::now();
-}
+auto now() { return std::chrono::high_resolution_clock::now(); }
 
 template<typename T> // no GNU extension.
 auto duration(const T& dur)
@@ -71,7 +68,7 @@ int main(int argc, char* argv[])
     pool.emplace_back(sender, tx.clone(), i, num);
   }
 
-  for(auto& x : pool)
+  for(auto& x: pool)
     x.join();
   tx.send(309);
   rcv.join();

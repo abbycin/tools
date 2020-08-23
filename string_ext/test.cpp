@@ -35,19 +35,19 @@ bool check(const string_ext& ip)
     }
     if(count > 255)
       return false;
-    // strict 
+    // strict
     switch(x.size())
     {
-      case 2:
-        if(count < 10)
-          return false;
-        break;
-      case 3:
-        if(count < 100)
-          return false;
-        break;
-      default:
-        break;
+    case 2:
+      if(count < 10)
+        return false;
+      break;
+    case 3:
+      if(count < 100)
+        return false;
+      break;
+    default:
+      break;
     }
   }
   return true;
@@ -63,7 +63,7 @@ int main(int argc, char* argv[])
   ifstream in(argv[1], in.in);
   if(!in.is_open())
   {
-    cout << "can't open file: " << argv[1] << endl; 
+    cout << "can't open file: " << argv[1] << endl;
   }
   string_ext line;
   vector<string_ext> ips;
@@ -78,7 +78,8 @@ int main(int argc, char* argv[])
     if(ip.size() != 0)
       cout << (check(ip) ? "valid ip" : "invalid ip") << "\t" << ip << endl;
   }
-  string_ext b{R"del(http://gslb.miaopai.com/stream/aQVm-hdSl~OLe6Lh7Q6C9A__.mp4?yx=&refer=weibo_app&Expires=1490264147&ssig=07XsfjKJkG&KID=unistore,video)del"};
+  string_ext b{
+      R"del(http://gslb.miaopai.com/stream/aQVm-hdSl~OLe6Lh7Q6C9A__.mp4?yx=&refer=weibo_app&Expires=1490264147&ssig=07XsfjKJkG&KID=unistore,video)del"};
   string_ext pattern{R"del(http://(.*\.miaopai.com)/(.*)/([^?]*)(.*))del"};
   bool res = b.match(pattern);
   if(res)

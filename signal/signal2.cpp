@@ -10,20 +10,11 @@
 
 struct T
 {
-  void print(int x)
-  {
-    std::cout << "member function: " << x << "\n";
-  }
-  static void show(int x)
-  {
-    std::cout << "static member function: " << x << std::endl;
-  }
+  void print(int x) { std::cout << "member function: " << x << "\n"; }
+  static void show(int x) { std::cout << "static member function: " << x << std::endl; }
 };
 
-void print(int x)
-{
-  std::cout << "free function: " << x << "\n";
-}
+void print(int x) { std::cout << "free function: " << x << "\n"; }
 
 int main()
 {
@@ -31,17 +22,16 @@ int main()
   T t;
   Signal<void(int)> sig;
   auto m = sig.connect(&t, &T::print);
-  auto handle = sig.connect([](int x){printf("anonymous function: %d\n", x);});
+  auto handle = sig.connect([](int x) { printf("anonymous function: %d\n", x); });
   sig.connect(&print);
   sig.connect(&T::show);
-  sig.connect([&](int x)
-      {
-        t.print(x);
-        print(x);
-      });
+  sig.connect([&](int x) {
+    t.print(x);
+    print(x);
+  });
   sig.emit(40);
   std::cout << "----------------------\n";
-  //sig.disconnect<T, &T::print>(&t);
+  // sig.disconnect<T, &T::print>(&t);
   sig.disconnect(handle);
   sig.disconnect(m);
   sig.emit(30);
