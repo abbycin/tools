@@ -10,8 +10,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Werror -pedantic-errors
 
 file(GLOB items RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/*)
 foreach(item ${items})
-    string(REGEX MATCH "^[^\.].*" dot ${item})
-    if(("${dot}" STREQUAL "") OR (${item}  STREQUAL "build"))
+    string(REGEX MATCH "^[^.].*" dot ${item})
+    if(("${dot}" STREQUAL "") OR (${item}  MATCHES ".*build.*"))
         continue()
     endif()
     if(IS_DIRECTORY ${PROJECT_SOURCE_DIR}/${item})
