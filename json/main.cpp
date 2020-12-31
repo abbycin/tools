@@ -34,15 +34,18 @@ int main()
   auto& elder = r.get<nm::json::object_t>()["name"];
   std::cout << "name: " << elder.get<nm::json::string_t>() << '\n';
   std::cout << "age: " << r.get<nm::json::object_t>()["age"].get<nm::json::number_t>() << '\n';
-  r.get<nm::json::object_t>()["male"] = nm::json::array_t{"he is male?", true};
+  r["male"] = nm::json::array_t{"he is male?", true};
 
   std::cout << "stringify: \n";
   std::cout << r.to_string(2) << '\n';
 
   std::cout << "-------------------------------\n";
-  nm::json::JsonValue j{
-      {{"name", "elder"}, {"age", 1926.8}, {"motto", nm::json::array_t{"too young too simple", "sometimes naive!"}}}};
+  nm::json::JsonValue j{{{"name", "elder"},
+                         {"age", 1926.800090},
+                         {"\tmotto\t", nm::json::array_t{"too young too simple\t", "sometimes naive!"}}}};
 
   std::cout << j.to_string() << '\n';
+  std::cout << std::setprecision(9) << j["age"] << '\n';
+  std::cout << j["\tmotto\t"][0] << j["\tmotto\t"][1] << '\n';
   return 0;
 }

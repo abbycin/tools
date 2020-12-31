@@ -8,6 +8,7 @@
 #ifndef JSON_H_
 #define JSON_H_
 
+#include <iomanip>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -297,6 +298,10 @@ namespace nm::json
       return *detail::value_map<T>::value(value_->data);
     }
 
+    JsonValue& operator[](size_t i) { return (*value_->data.array_)[i]; }
+
+    JsonValue& operator[](const string_t& k) { return (*value_->data.object_)[k]; }
+
     std::string to_string(bool* ok = nullptr) const { return to_string(true, 0, ok); }
 
     std::string to_string(size_t indent, bool* ok = nullptr) const { return to_string(false, indent, ok); }
@@ -316,7 +321,9 @@ namespace nm::json
         return "invalid JsonValue";
       }
       size_t depth = 0;
-      auto r = to_string_impl(indent, indent, true, depth, compact);
+      std::ostringstream os;
+      os << std::fixed << std::setprecision(20) << std::boolalpha;
+      to_string_impl(os, indent, indent, true, depth, compact);
       if(depth > max_depth)
       {
         if(ok)
@@ -325,29 +332,41 @@ namespace nm::json
         }
         return "nested too deeply, nest depth is limited to " + std::to_string(max_depth);
       }
-      return r;
+      return os.str();
     }
 
-    std::string to_string_impl(size_t indent, size_t cur_indent, bool top, size_t& depth, bool compact) const
+    void to_string_impl(std::ostringstream& os, size_t indent, size_t cur_indent, bool top, size_t& depth,
+                        bool compact) const
     {
       switch(value_->type)
       {
       case value_type::null:
-        return "null";
+        os << "null";
+        break;
       case value_type::invalid:
-        return "";
+        os << "";
+        break;
       case value_type::boolean:
-        return value_->data.bool_ ? "true" : "false";
+        os << value_->data.bool_;
+        break;
       case value_type::number:
-        return std::to_string(value_->data.number_);
+      {
+        auto s = std::to_string(value_->data.number_);
+        s = s.substr(0, s.find_last_not_of('0') + 1);
+        if(!s.empty() && s.back() == '.')
+        {
+          s.pop_back();
+        }
+        os << s;
+        break;
+      }
       case value_type::array:
       {
         if(depth > max_depth)
         {
-          return {};
+          return;
         }
         ++depth;
-        std::ostringstream os;
         os << '[';
         new_line(os, compact);
         size_t n = value_->data.array_->size();
@@ -355,7 +374,7 @@ namespace nm::json
         for(auto& v: *value_->data.array_)
         {
           make_space(cur_indent, os, compact);
-          os << v.to_string_impl(indent, cur_indent + indent, false, depth, compact);
+          v.to_string_impl(os, indent, cur_indent + indent, false, depth, compact);
           if(idx < n - 1)
           {
             os << ',';
@@ -369,18 +388,20 @@ namespace nm::json
         }
         os << ']';
         --depth;
-        return os.str();
+        break;
       }
       case value_type::string:
-        return "\"" + *value_->data.string_ + "\"";
+      {
+        escape_str(os, *value_->data.string_);
+        break;
+      }
       case value_type::object:
       {
         if(depth > max_depth)
         {
-          return {};
+          return;
         }
         ++depth;
-        std::ostringstream os;
         size_t idx = 0;
         size_t size = value_->data.object_->size();
         os << '{';
@@ -388,12 +409,13 @@ namespace nm::json
         for(auto& [k, v]: *value_->data.object_)
         {
           make_space(cur_indent, os, compact);
-          os << '"' << k << "\":";
+          escape_str(os, k);
+          os << ':';
           if(!compact)
           {
             os << ' ';
           }
-          os << v.to_string_impl(indent, cur_indent + indent, false, depth, compact);
+          v.to_string_impl(os, indent, cur_indent + indent, false, depth, compact);
           if(idx < size - 1)
           {
             os << ',';
@@ -407,10 +429,9 @@ namespace nm::json
         }
         os << '}';
         --depth;
-        return os.str();
+        break;
       }
       }
-      return {}; // shut up compiler
     }
 
     static void make_space(size_t n, std::ostringstream& os, bool compact)
@@ -431,7 +452,27 @@ namespace nm::json
         os << '\n';
       }
     }
+
+    static void escape_str(std::ostringstream& os, const std::string& s)
+    {
+      os << '"';
+      for(auto c: s)
+      {
+        if(c == '"' || c == '\\')
+        {
+          os << '\\';
+        }
+        os << c;
+      }
+      os << '"';
+    }
   };
+
+  inline std::ostream& operator<<(std::ostream& os, const JsonValue& j)
+  {
+    os << j.to_string();
+    return os;
+  }
 
   namespace detail
   {
