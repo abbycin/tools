@@ -87,9 +87,9 @@ private:
     FILE* fd = fopen(out_.c_str(), "w");
     if(fd == nullptr)
       failure(__func__, __LINE__);
-    FILE* fds[count_];
-    long data[count_];
-    bool done[count_];
+    std::vector<FILE*> fds(count_);
+    std::vector<long> data(count_);
+    std::vector<bool> done(count_);
     char name[50];
     for(long i = 0; i < count_; ++i)
     {

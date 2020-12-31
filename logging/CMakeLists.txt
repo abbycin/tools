@@ -1,12 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
-project(logging)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Werror -pedantic-errors -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Werror -pedantic-errors")
-
-set(SOURCE_FILES
-    logging.h test.cpp)
+set(SOURCE_FILES logging.h test.cpp)
 
 add_executable(logging_test ${SOURCE_FILES})
 target_link_libraries(logging_test pthread)

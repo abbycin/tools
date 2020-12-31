@@ -20,4 +20,4 @@ all:
 	cd build && cmake -DCMAKE_BUILD_TYPE=$(FLAG) .. && cmake --build . -- -j$(JOBS)
 
 clean:
-	@rm -rf bin build lib
+	@rm -rf build

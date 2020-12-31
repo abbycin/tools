@@ -1,0 +1,1 @@
+add_executable(hash test_hash.cpp)

@@ -51,4 +51,4 @@ int main(int argc, char* argv[])
   of.write("\t", 1);
   of << res;
   of.close();
-};
+}

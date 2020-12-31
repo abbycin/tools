@@ -1,0 +1,1 @@
+add_executable(functor_map test.cpp)

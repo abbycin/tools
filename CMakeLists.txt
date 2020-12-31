@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.18)
+project(tools)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Werror -pedantic-errors -O0")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Werror -pedantic-errors")
+
+file(GLOB items RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/*)
+foreach(item ${items})
+    string(REGEX MATCH "^[^\.].*" dot ${item})
+    if(("${dot}" STREQUAL "") OR (${item}  STREQUAL "build"))
+        continue()
+    endif()
+    if(IS_DIRECTORY ${PROJECT_SOURCE_DIR}/${item})
+        message(STATUS ${item})
+        add_subdirectory(${PROJECT_SOURCE_DIR}/${item})
+    endif()
+endforeach()

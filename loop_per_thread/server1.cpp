@@ -9,9 +9,11 @@
 #include <thread>
 #include <boost/asio.hpp>
 
-class Service : boost::noncopyable, public std::enable_shared_from_this<Service>
+class Service : public std::enable_shared_from_this<Service>
 {
 public:
+  Service(const Service&) = delete;
+  Service& operator=(const Service&) = delete;
   Service(std::shared_ptr<boost::asio::ip::tcp::socket> sock) : socket_(sock), msg_("pong\n") {}
 
   static std::shared_ptr<Service> make_service(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
@@ -64,7 +66,7 @@ private:
   }
 };
 
-class Acceptor : boost::noncopyable
+class Acceptor
 {
 public:
   Acceptor(boost::asio::io_service* io, boost::asio::ip::tcp::endpoint&& ep)
@@ -72,6 +74,9 @@ public:
   {
     std::atomic_init(&is_quit_, false);
   }
+
+  Acceptor(const Acceptor&) = delete;
+  Acceptor& operator=(const Acceptor&) = delete;
 
   void start()
   {
