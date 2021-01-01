@@ -47,5 +47,26 @@ int main()
   std::cout << j.to_string() << '\n';
   std::cout << std::setprecision(9) << j["age"] << '\n';
   std::cout << j["\tmotto\t"][0] << j["\tmotto\t"][1] << '\n';
+
+  {
+    using namespace nm;
+    json::JsonValue j{{
+        {"heterogeneous", json::array_t{1,
+                                        2,
+                                        3,
+                                        true,
+                                        false,
+                                        "+1s",
+                                        json::array_t{2, 3, 3},
+                                        {{"name", "elder"}, {"age", json::array_t{1926, 8}}}}},
+    }};
+    j["elder"] = 1;
+    auto j2 = j.clone();
+    j["elder"] = 2;
+    j["heterogeneous"] = json::null_t{};
+    j2["heterogeneous"][0] = 1926;
+    std::cout << j << '\n';
+    std::cout << j2 << '\n';
+  }
   return 0;
 }

@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <map>
 #include <memory>
+#include <stack>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -68,6 +69,29 @@ namespace nm::json
     struct value_type
     {
       value_type() : data{null_t{}}, type{invalid} {}
+      ~value_type()
+      {
+        switch(type)
+        {
+        case value_type::string:
+        {
+          delete data.string_;
+          break;
+        }
+        case value_type::object:
+        {
+          delete data.object_;
+          break;
+        }
+        case value_type::array:
+        {
+          delete data.array_;
+          break;
+        }
+        default:
+          break;
+        }
+      }
 
       enum Category
       {
@@ -163,33 +187,9 @@ namespace nm::json
   class JsonValue final
   {
     using value_type = detail::value_type;
-    static void deleter(value_type* v)
-    {
-      switch(v->type)
-      {
-      case value_type::string:
-      {
-        delete v->data.string_;
-        break;
-      }
-      case value_type::object:
-      {
-        delete v->data.object_;
-        break;
-      }
-      case value_type::array:
-      {
-        delete v->data.array_;
-        break;
-      }
-      default:
-        break;
-      }
-      delete v;
-    }
 
   public:
-    JsonValue() : value_{new value_type{}, deleter}, trace_{} {}
+    JsonValue() : value_{new value_type{}}, trace_{} {}
     template<size_t N>
     JsonValue(const char (&a)[N]) : JsonValue{string_t{a, N}}
     {
@@ -205,6 +205,8 @@ namespace nm::json
       value_->data.number_ = d;
       value_->type = value_type::number;
     }
+    JsonValue(int i) : JsonValue{(double)i} {}
+    JsonValue(long l) : JsonValue{(double)l} {}
     JsonValue(null_t n) : JsonValue{}
     {
       value_->data.null_ = n;
@@ -225,6 +227,12 @@ namespace nm::json
       value_->data.array_ = new array_t{std::move(a)};
 #endif
       value_->type = value_type::array;
+    }
+    // never use std::initializer_list<JsonValue> for array
+    JsonValue(const std::initializer_list<std::pair<string_t, JsonValue>>& p) : JsonValue{}
+    {
+      value_->data.object_ = new object_t{p.begin(), p.end()};
+      value_->type = value_type::object;
     }
     JsonValue(object_t&& o) : JsonValue{}
     {
@@ -305,6 +313,14 @@ namespace nm::json
     std::string to_string(bool* ok = nullptr) const { return to_string(true, 0, ok); }
 
     std::string to_string(size_t indent, bool* ok = nullptr) const { return to_string(false, indent, ok); }
+
+    // deep copy
+    JsonValue clone()
+    {
+      JsonValue res{};
+      clone(*this, res);
+      return res;
+    }
 
   private:
     std::shared_ptr<value_type> value_;
@@ -431,6 +447,76 @@ namespace nm::json
         --depth;
         break;
       }
+      }
+    }
+
+    static void clone(JsonValue& in, JsonValue& out)
+    {
+      std::stack<JsonValue> si{};
+      si.push(in);
+      std::stack<JsonValue> so{};
+      so.push(out);
+      while(!si.empty())
+      {
+        auto ji = si.top();
+        si.pop();
+        auto jo = so.top();
+        so.pop();
+
+        auto& vi = ji.value_;
+        auto& vo = jo.value_;
+
+        switch(vi->type)
+        {
+        case detail::value_type::null:
+        {
+          vo->type = vi->type;
+          vo->data.null_ = null_t{};
+          break;
+        }
+        case detail::value_type::boolean:
+        {
+          vo->type = vi->type;
+          vo->data.bool_ = vi->data.bool_;
+          break;
+        }
+        case detail::value_type::number:
+        {
+          vo->type = vi->type;
+          vo->data.number_ = vi->data.number_;
+          break;
+        }
+        case detail::value_type::string:
+        {
+          vo->type = vi->type;
+          vo->data.string_ = new std::string{*vi->data.string_};
+          break;
+        }
+        case detail::value_type::array:
+        {
+          vo->type = vi->type;
+          vo->data.array_ = new array_t{};
+          auto n = vi->data.array_->size();
+          vo->data.array_->resize(n);
+          for(size_t i = 0; i < n; ++i)
+          {
+            si.push((*vi->data.array_)[i]);
+            so.push((*vo->data.array_)[i]);
+          }
+          break;
+        }
+        case detail::value_type::object:
+        {
+          vo->type = vi->type;
+          vo->data.object_ = new object_t{};
+          for(auto& [k, v]: *vi->data.object_)
+          {
+            si.push(v);
+            so.push((*vo->data.object_)[k]);
+          }
+          break;
+        }
+        }
       }
     }
 
