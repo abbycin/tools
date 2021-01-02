@@ -28,16 +28,25 @@ int main()
     std::cout << r.trace() << '\n';
     return 1;
   }
+  auto r2 = nm::json::parse2(s);
+  if(!r2)
+  {
+    std::cout << r2.trace() << '\n';
+    return 1;
+  }
+  auto r3 = r.clone();
+  auto r4 = nm::json::parse2(nm::json::parse2(r2.to_string2()).to_string2());
+  std::cout << std::boolalpha << (r == r2) << ' ' << (r3 == r4) << '\n';
   std::cout << "is object: " << std::boolalpha << r.is_object() << '\n';
   auto o = r.as<nm::json::object_t>();
-  std::cout << "object size: " << o->size() << '\n';
-  auto& elder = r.get<nm::json::object_t>()["name"];
-  std::cout << "name: " << elder.get<nm::json::string_t>() << '\n';
-  std::cout << "age: " << r.get<nm::json::object_t>()["age"].get<nm::json::number_t>() << '\n';
+  std::cout << "object size: " << o.size() << '\n';
+  auto& elder = r.as<nm::json::object_t>()["name"];
+  std::cout << "name: " << elder.as<nm::json::string_t>() << '\n';
+  std::cout << "age: " << r.as<nm::json::object_t>()["age"].as<nm::json::number_t>() << '\n';
   r["male"] = nm::json::array_t{"he is male?", true};
 
   std::cout << "stringify: \n";
-  std::cout << r.to_string(2) << '\n';
+  std::cout << r.to_string2(1) << '\n';
 
   std::cout << "-------------------------------\n";
   nm::json::JsonValue j{{{"name", "elder"},
@@ -66,7 +75,7 @@ int main()
     j["heterogeneous"] = json::null_t{};
     j2["heterogeneous"][0] = 1926;
     std::cout << j << '\n';
-    std::cout << j2 << '\n';
+    std::cout << j2.to_string2(0) << '\n';
   }
   return 0;
 }

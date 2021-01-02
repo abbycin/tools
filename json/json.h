@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <map>
 #include <memory>
+#include <set>
 #include <stack>
 #include <sstream>
 #include <string>
@@ -18,6 +19,7 @@
 
 #ifndef NDEBUG
 #include <iostream>
+#include <cassert>
 struct debugger
 {
   debugger(const char* s, int n) { std::cerr << s << ':' << n << " => "; }
@@ -66,26 +68,27 @@ namespace nm::json
       T ch;
     };
 
+    // union-like class
     struct value_type
     {
-      value_type() : data{null_t{}}, type{invalid} {}
+      value_type() : null_{}, type{invalid} {}
       ~value_type()
       {
         switch(type)
         {
         case value_type::string:
         {
-          delete data.string_;
+          delete string_;
           break;
         }
         case value_type::object:
         {
-          delete data.object_;
+          delete object_;
           break;
         }
         case value_type::array:
         {
-          delete data.array_;
+          delete array_;
           break;
         }
         default:
@@ -103,7 +106,7 @@ namespace nm::json
         string,
         object
       };
-      union Data
+      union
       {
         null_t null_;
         bool_t bool_;
@@ -112,8 +115,6 @@ namespace nm::json
         string_t* string_;
         object_t* object_;
       };
-
-      Data data;
       Category type;
     };
 
@@ -155,32 +156,32 @@ namespace nm::json
     template<>
     struct value_map<null_t>
     {
-      static constexpr null_t* value(value_type::Data& v) { return &v.null_; }
+      static constexpr null_t* value(value_type& v) { return &v.null_; }
     };
     template<>
     struct value_map<bool_t>
     {
-      static constexpr bool_t* value(value_type::Data& v) { return &v.bool_; }
+      static constexpr bool_t* value(value_type& v) { return &v.bool_; }
     };
     template<>
     struct value_map<number_t>
     {
-      static constexpr number_t* value(value_type::Data& v) { return &v.number_; }
+      static constexpr number_t* value(value_type& v) { return &v.number_; }
     };
     template<>
     struct value_map<array_t>
     {
-      static constexpr array_t* value(value_type::Data& v) { return v.array_; }
+      static constexpr array_t* value(value_type& v) { return v.array_; }
     };
     template<>
     struct value_map<string_t>
     {
-      static constexpr string_t* value(value_type::Data& v) { return v.string_; }
+      static constexpr string_t* value(value_type& v) { return v.string_; }
     };
     template<>
     struct value_map<object_t>
     {
-      static constexpr object_t* value(value_type::Data& v) { return v.object_; }
+      static constexpr object_t* value(value_type& v) { return v.object_; }
     };
   } // namespace detail
 
@@ -195,33 +196,37 @@ namespace nm::json
     {
     }
     // no explicit
-    JsonValue(string_t&& s) : JsonValue{}
+    JsonValue(const string_t& s) : JsonValue{}
     {
-      value_->data.string_ = new std::string{std::move(s)};
+      value_->string_ = new std::string{s};
       value_->type = value_type::string;
     }
-    JsonValue(number_t d) : JsonValue{}
+    JsonValue(string_t&& s) : JsonValue{}
     {
-      value_->data.number_ = d;
+      value_->string_ = new std::string{std::move(s)};
+      value_->type = value_type::string;
+    }
+    template<typename T, typename = std::enable_if_t<std::is_convertible_v<T, number_t>>>
+    JsonValue(T d) : JsonValue{}
+    {
+      value_->number_ = (number_t)d;
       value_->type = value_type::number;
     }
-    JsonValue(int i) : JsonValue{(double)i} {}
-    JsonValue(long l) : JsonValue{(double)l} {}
     JsonValue(null_t n) : JsonValue{}
     {
-      value_->data.null_ = n;
+      value_->null_ = n;
       value_->type = value_type::null;
     }
     JsonValue(bool_t b) : JsonValue{}
     {
-      value_->data.bool_ = b;
+      value_->bool_ = b;
       value_->type = value_type::boolean;
     }
     JsonValue(array_t&& a) : JsonValue{}
     {
 #if 1
-      value_->data.array_ = new array_t{};
-      *value_->data.array_ = std::move(a);
+      value_->array_ = new array_t{};
+      *value_->array_ = std::move(a);
 #else
       // recursively call itself when using g++ (clang++ is ok)
       value_->data.array_ = new array_t{std::move(a)};
@@ -229,14 +234,14 @@ namespace nm::json
       value_->type = value_type::array;
     }
     // never use std::initializer_list<JsonValue> for array
-    JsonValue(const std::initializer_list<std::pair<string_t, JsonValue>>& p) : JsonValue{}
+    JsonValue(const std::initializer_list<std::pair<string_t, JsonValue>>& il) : JsonValue{}
     {
-      value_->data.object_ = new object_t{p.begin(), p.end()};
+      value_->object_ = new object_t{il.begin(), il.end()};
       value_->type = value_type::object;
     }
     JsonValue(object_t&& o) : JsonValue{}
     {
-      value_->data.object_ = new object_t{std::move(o)};
+      value_->object_ = new object_t{std::move(o)};
       value_->type = value_type::object;
     }
 
@@ -266,7 +271,98 @@ namespace nm::json
 
     ~JsonValue() = default;
 
+    JsonValue& operator=(null_t)
+    {
+      value_->~value_type();
+      value_->type = value_type::null;
+      return *this;
+    }
+
+    JsonValue& operator=(bool_t b)
+    {
+      value_->~value_type();
+      value_->bool_ = b;
+      value_->type = value_type::boolean;
+      return *this;
+    }
+
+    template<typename T, typename = std::enable_if_t<std::is_convertible_v<T, number_t>>>
+    JsonValue& operator=(T t)
+    {
+      value_->~value_type();
+      value_->number_ = t;
+      value_->type = value_type::number;
+      return *this;
+    }
+
+    template<size_t N>
+    JsonValue& operator=(const char (&a)[N])
+    {
+      value_->~value_type();
+      value_->string_ = new string_t{a, N};
+      value_->type = value_type::string;
+      return *this;
+    }
+
+    JsonValue& operator=(const string_t& s)
+    {
+      value_->~value_type();
+      value_->string_ = new std::string{s};
+      value_->type = value_type::string;
+      return *this;
+    }
+
+    JsonValue& operator=(string_t&& s)
+    {
+      value_->~value_type();
+      value_->string_ = new std::string{std::move(s)};
+      value_->type = value_type::string;
+      return *this;
+    }
+
+    JsonValue& operator=(const array_t& a)
+    {
+      value_->~value_type();
+      value_->array_ = new array_t{};
+      for(auto& x: a)
+      {
+        value_->array_->emplace_back(x.clone());
+      }
+      value_->type = value_type::array;
+      return *this;
+    }
+
+    JsonValue& operator=(array_t&& a)
+    {
+      value_->~value_type();
+      value_->array_ = new array_t{};
+      *value_->array_ = std::move(a); // see JsonValue(array_t&& a)
+      value_->type = value_type::array;
+      return *this;
+    }
+
+    JsonValue& operator=(const object_t& o)
+    {
+      value_->~value_type();
+      value_->object_ = new object_t{};
+      for(auto& [k, v]: o)
+      {
+        value_->object_->emplace(k, v.clone());
+      }
+      value_->type = value_type::object;
+      return *this;
+    }
+
+    JsonValue& operator=(object_t&& o)
+    {
+      value_->~value_type();
+      value_->object_ = new object_t{std::move(o)};
+      value_->type = value_type::object;
+      return *this;
+    }
+
     [[nodiscard]] const std::string& trace() const { return trace_; }
+
     static JsonValue from_trace(const std::string& t)
     {
       JsonValue res{};
@@ -289,41 +385,400 @@ namespace nm::json
     explicit operator bool() const { return value_->type != value_type::invalid; }
 
     template<typename T>
-    T* as()
+    T* get()
     {
       auto type = detail::type_map<T>::type;
       if(value_->type != type || type == value_type::invalid)
       {
         return nullptr;
       }
-      return detail::value_map<T>::value(value_->data);
+      return detail::value_map<T>::value(*value_);
     }
 
     // no check
     template<typename T>
-    T& get()
+    T& as()
     {
-      return *detail::value_map<T>::value(value_->data);
+      return *detail::value_map<T>::value(*value_);
     }
 
-    JsonValue& operator[](size_t i) { return (*value_->data.array_)[i]; }
+    JsonValue& operator[](size_t i) { return (*value_->array_)[i]; }
 
-    JsonValue& operator[](const string_t& k) { return (*value_->data.object_)[k]; }
+    JsonValue& operator[](const string_t& k) { return (*value_->object_)[k]; }
 
     std::string to_string(bool* ok = nullptr) const { return to_string(true, 0, ok); }
 
     std::string to_string(size_t indent, bool* ok = nullptr) const { return to_string(false, indent, ok); }
 
+    std::string to_string2(size_t indent = 1) const
+    {
+      if(!*this)
+      {
+        return "invalid JsonValue";
+      }
+      enum Status
+      {
+        Array = 0,
+        Key,
+        Value
+      };
+      std::stack<value_ptr> st{};
+      std::stack<Status> ct{};
+      std::stack<value_ptr> tr{};
+      size_t cur_indent = indent;
+      bool compact = indent == 0;
+      st.push(value_);
+      std::string os;
+
+      while(!st.empty())
+      {
+        auto j = st.top();
+        st.pop();
+
+        switch(j->type)
+        {
+        case detail::value_type::null:
+        {
+          if(!ct.empty())
+          {
+            switch(ct.top())
+            {
+            case Array:
+              make_space(cur_indent, os, compact);
+            case Value:
+              os.append("null");
+              os.push_back(',');
+              break;
+            default:
+              break;
+            }
+            new_line(os, compact);
+            ct.pop();
+          }
+          else
+          {
+            os.append("null");
+          }
+          break;
+        }
+        case detail::value_type::boolean:
+        {
+          if(!ct.empty())
+          {
+            switch(ct.top())
+            {
+            case Array:
+              make_space(cur_indent, os, compact);
+            case Value:
+              os.append(j->bool_ ? "true" : "false");
+              os.push_back(',');
+              break;
+            default:
+              break;
+            }
+            new_line(os, compact);
+            ct.pop();
+          }
+          else
+          {
+            os.append(j->bool_ ? "true" : "false");
+          }
+          break;
+        }
+        case detail::value_type::number:
+        {
+          char buf[64]{};
+          int n = snprintf(buf, sizeof(buf), "%f", j->number_);
+          assert(n > 0);
+          std::string s{buf, (size_t)n};
+          s = s.substr(0, s.find_last_not_of('0') + 1);
+          if(!s.empty() && s.back() == '.')
+          {
+            s.pop_back();
+          }
+
+          if(!ct.empty())
+          {
+            switch(ct.top())
+            {
+            case Array:
+              make_space(cur_indent, os, compact);
+            case Value:
+              os.append(s);
+              os.push_back(',');
+              break;
+            default:
+              break;
+            }
+            new_line(os, compact);
+            ct.pop();
+          }
+          else
+          {
+            os.append(s);
+          }
+          break;
+        }
+        case detail::value_type::string:
+        {
+          if(!ct.empty())
+          {
+            switch(ct.top())
+            {
+            case Array:
+              make_space(cur_indent, os, compact);
+              escape_str(os, *j->string_);
+              os.push_back(',');
+              new_line(os, compact);
+              break;
+            case Key:
+              make_space(cur_indent, os, compact);
+              escape_str(os, *j->string_);
+              os.push_back(':');
+              make_space(1, os, compact);
+              break;
+            case Value:
+              escape_str(os, *j->string_);
+              os.push_back(',');
+              new_line(os, compact);
+              break;
+            }
+            ct.pop();
+          }
+          else
+          {
+            escape_str(os, *j->string_);
+          }
+          break;
+        }
+        case detail::value_type::array:
+        {
+          if(tr.empty())
+          {
+            os.push_back('[');
+            cur_indent += indent;
+            tr.push(j); // trace
+            st.push(j); // back to here
+            for(auto& v: *j->array_)
+            {
+              ct.push(Array);
+              st.push(v.value_);
+            }
+          }
+          else if(tr.top() == j)
+          {
+            cur_indent -= indent;
+            if(j->array_->empty())
+            {
+              os.push_back(']');
+            }
+            else
+            {
+              ct.pop(); // remove previous unpacked object
+              os.erase(os.find_last_of(',')); // os always end at ','
+              new_line(os, compact);
+              make_space(cur_indent, os, compact);
+              os.push_back(']');
+              os.push_back(',');
+            }
+            tr.pop();
+          }
+          else
+          {
+            if(!ct.empty() && ct.top() != Value)
+            {
+              make_space(cur_indent, os, compact);
+            }
+            cur_indent += indent;
+            os.push_back('[');
+            tr.push(j);
+            st.push(j);
+            for(auto& v: *j->array_)
+            {
+              ct.push(Array);
+              st.push(v.value_);
+            }
+          }
+          new_line(os, compact);
+          break;
+        }
+        case detail::value_type::object:
+        {
+          if(tr.empty())
+          {
+            os.push_back('{');
+            tr.push(j);
+            st.push(j); // back to here
+            for(auto& [k, v]: *j->object_)
+            {
+              // invert
+              ct.push(Value);
+              st.push(v.value_);
+
+              ct.push(Key); // dirty and quick
+              auto key = std::make_shared<value_type>();
+              key->string_ = new string_t{k};
+              key->type = detail::value_type::string;
+              st.push(key);
+            }
+          }
+          else if(tr.top() == j)
+          {
+            cur_indent -= indent;
+            if(j->object_->empty())
+            {
+              // make_space(cur_indent, os, compact);
+              os.push_back('}');
+            }
+            else
+            {
+              ct.pop(); // remove previous unpacked object
+              os.erase(os.find_last_of(',')); // os always end at ','
+              new_line(os, compact);
+              make_space(cur_indent, os, compact);
+              os.push_back('}');
+              os.push_back(',');
+            }
+            tr.pop();
+          }
+          else
+          {
+            if(!ct.empty() && ct.top() != Value)
+            {
+              make_space(cur_indent, os, compact);
+            }
+            cur_indent += indent;
+            os.push_back('{');
+            tr.push(j);
+            st.push(j);
+            for(auto& [k, v]: *j->object_)
+            {
+              // invert
+              ct.push(Value);
+              st.push(v.value_);
+
+              ct.push(Key);
+              auto key = std::make_shared<value_type>();
+              key->string_ = new string_t{k};
+              key->type = detail::value_type::string;
+              st.push(key);
+            }
+          }
+          new_line(os, compact);
+          break;
+        }
+        default:
+          return "invalid JsonValue";
+        }
+      }
+      if(auto n = os.find_last_of(','); n != std::string::npos)
+      {
+        os.erase(n);
+      }
+      return os;
+    }
+
     // deep copy
-    JsonValue clone()
+    JsonValue clone() const
     {
       JsonValue res{};
       clone(*this, res);
       return res;
     }
 
+    bool operator==(const JsonValue& r) const
+    {
+      std::stack<JsonValue> sl;
+      std::stack<JsonValue> sr;
+
+      sl.push(*this);
+      sr.push(r);
+
+      while(!sl.empty() && !sr.empty())
+      {
+        auto nl = sl.top();
+        sl.pop();
+        auto nr = sr.top();
+        sr.pop();
+
+        if(nl.value_->type != nr.value_->type)
+        {
+          return false;
+        }
+        switch(nl.value_->type)
+        {
+        case detail::value_type::boolean:
+        {
+          if(nl.value_->bool_ != nr.value_->bool_)
+          {
+            return false;
+          }
+          break;
+        }
+        case detail::value_type::number:
+        {
+          if(std::abs(nl.value_->number_ - nr.value_->number_) > std::numeric_limits<number_t>::epsilon())
+          {
+            return false;
+          }
+          break;
+        }
+        case detail::value_type::string:
+        {
+          if(*nl.value_->string_ != *nr.value_->string_)
+          {
+            return false;
+          }
+          break;
+        }
+        case detail::value_type::array:
+        {
+          if(nl.value_->array_->size() != nr.value_->array_->size())
+          {
+            return false;
+          }
+          for(auto& x: *nl.value_->array_)
+          {
+            sl.push(x);
+          }
+          for(auto& x: *nr.value_->array_)
+          {
+            sr.push(x);
+          }
+          break;
+        }
+        case detail::value_type::object:
+        {
+          if(nl.value_->object_->size() != nr.value_->object_->size())
+          {
+            return false;
+          }
+          auto si = nl.value_->object_->begin();
+          auto ri = nr.value_->object_->begin();
+          auto e = nl.value_->object_->end();
+          while(si != e)
+          {
+            if(si->first != ri->first)
+            {
+              return false;
+            }
+            sl.push(si->second);
+            sr.push(ri->second);
+            ++si;
+            ++ri;
+          }
+          break;
+        }
+        default:
+          break;
+        }
+      }
+      return sr.size() == sl.size();
+    }
+
   private:
-    std::shared_ptr<value_type> value_;
+    using value_ptr = std::shared_ptr<value_type>;
+    value_ptr value_;
     std::string trace_;
 
     std::string to_string(bool compact, size_t indent, bool* ok) const
@@ -337,8 +792,7 @@ namespace nm::json
         return "invalid JsonValue";
       }
       size_t depth = 0;
-      std::ostringstream os;
-      os << std::fixed << std::setprecision(20) << std::boolalpha;
+      std::string os;
       to_string_impl(os, indent, indent, true, depth, compact);
       if(depth > max_depth)
       {
@@ -348,32 +802,33 @@ namespace nm::json
         }
         return "nested too deeply, nest depth is limited to " + std::to_string(max_depth);
       }
-      return os.str();
+      return os;
     }
 
-    void to_string_impl(std::ostringstream& os, size_t indent, size_t cur_indent, bool top, size_t& depth,
-                        bool compact) const
+    void to_string_impl(std::string& os, size_t indent, size_t cur_indent, bool top, size_t& depth, bool compact) const
     {
       switch(value_->type)
       {
       case value_type::null:
-        os << "null";
+        os.append("null");
         break;
       case value_type::invalid:
-        os << "";
         break;
       case value_type::boolean:
-        os << value_->data.bool_;
+        os.append(value_->bool_ ? "true" : "false");
         break;
       case value_type::number:
       {
-        auto s = std::to_string(value_->data.number_);
+        char buf[64]{};
+        int n = snprintf(buf, sizeof(buf), "%f", value_->number_);
+        assert(n > 0);
+        std::string s{buf, (size_t)n};
         s = s.substr(0, s.find_last_not_of('0') + 1);
         if(!s.empty() && s.back() == '.')
         {
           s.pop_back();
         }
-        os << s;
+        os.append(s);
         break;
       }
       case value_type::array:
@@ -383,17 +838,17 @@ namespace nm::json
           return;
         }
         ++depth;
-        os << '[';
+        os.push_back('[');
         new_line(os, compact);
-        size_t n = value_->data.array_->size();
+        size_t n = value_->array_->size();
         size_t idx = 0;
-        for(auto& v: *value_->data.array_)
+        for(auto& v: *value_->array_)
         {
           make_space(cur_indent, os, compact);
           v.to_string_impl(os, indent, cur_indent + indent, false, depth, compact);
           if(idx < n - 1)
           {
-            os << ',';
+            os.push_back(',');
           }
           new_line(os, compact);
           idx += 1;
@@ -402,13 +857,13 @@ namespace nm::json
         {
           make_space(cur_indent - indent, os, compact);
         }
-        os << ']';
+        os.push_back(']');
         --depth;
         break;
       }
       case value_type::string:
       {
-        escape_str(os, *value_->data.string_);
+        escape_str(os, *value_->string_);
         break;
       }
       case value_type::object:
@@ -419,22 +874,19 @@ namespace nm::json
         }
         ++depth;
         size_t idx = 0;
-        size_t size = value_->data.object_->size();
-        os << '{';
+        size_t size = value_->object_->size();
+        os.push_back('{');
         new_line(os, compact);
-        for(auto& [k, v]: *value_->data.object_)
+        for(auto& [k, v]: *value_->object_)
         {
           make_space(cur_indent, os, compact);
           escape_str(os, k);
-          os << ':';
-          if(!compact)
-          {
-            os << ' ';
-          }
+          os.push_back(':');
+          make_space(1, os, compact);
           v.to_string_impl(os, indent, cur_indent + indent, false, depth, compact);
           if(idx < size - 1)
           {
-            os << ',';
+            os.push_back(',');
           }
           new_line(os, compact);
           idx += 1;
@@ -443,14 +895,14 @@ namespace nm::json
         {
           make_space(cur_indent - indent, os, compact);
         }
-        os << '}';
+        os.push_back('}');
         --depth;
         break;
       }
       }
     }
 
-    static void clone(JsonValue& in, JsonValue& out)
+    static void clone(const JsonValue& in, JsonValue& out)
     {
       std::stack<JsonValue> si{};
       si.push(in);
@@ -468,51 +920,53 @@ namespace nm::json
 
         switch(vi->type)
         {
+        case detail::value_type::invalid:
+          return;
         case detail::value_type::null:
         {
           vo->type = vi->type;
-          vo->data.null_ = null_t{};
+          vo->null_ = null_t{};
           break;
         }
         case detail::value_type::boolean:
         {
           vo->type = vi->type;
-          vo->data.bool_ = vi->data.bool_;
+          vo->bool_ = vi->bool_;
           break;
         }
         case detail::value_type::number:
         {
           vo->type = vi->type;
-          vo->data.number_ = vi->data.number_;
+          vo->number_ = vi->number_;
           break;
         }
         case detail::value_type::string:
         {
           vo->type = vi->type;
-          vo->data.string_ = new std::string{*vi->data.string_};
+          vo->string_ = new std::string{*vi->string_};
           break;
         }
         case detail::value_type::array:
         {
           vo->type = vi->type;
-          vo->data.array_ = new array_t{};
-          auto n = vi->data.array_->size();
-          vo->data.array_->resize(n);
+          vo->array_ = new array_t{};
+          auto n = vi->array_->size();
+          vo->array_->resize(n);
           for(size_t i = 0; i < n; ++i)
           {
-            si.push((*vi->data.array_)[i]);
-            so.push((*vo->data.array_)[i]);
+            si.push((*vi->array_)[i]);
+            so.push((*vo->array_)[i]);
           }
           break;
         }
         case detail::value_type::object:
         {
           vo->type = vi->type;
-          vo->data.object_ = new object_t{};
-          for(auto& [k, v]: *vi->data.object_)
+          vo->object_ = new object_t{};
+          for(auto& [k, v]: *vi->object_)
           {
             si.push(v);
-            so.push((*vo->data.object_)[k]);
+            so.push((*vo->object_)[k]);
           }
           break;
         }
@@ -520,37 +974,37 @@ namespace nm::json
       }
     }
 
-    static void make_space(size_t n, std::ostringstream& os, bool compact)
+    static void make_space(size_t n, std::string& os, bool compact)
     {
       if(!compact)
       {
         while(n-- > 0)
         {
-          os << ' ';
+          os.push_back(' ');
         }
       }
     }
 
-    static void new_line(std::ostringstream& os, bool compact)
+    static void new_line(std::string& os, bool compact)
     {
       if(!compact)
       {
-        os << '\n';
+        os.push_back('\n');
       }
     }
 
-    static void escape_str(std::ostringstream& os, const std::string& s)
+    static void escape_str(std::string& os, const std::string& s)
     {
-      os << '"';
+      os.push_back('"');
       for(auto c: s)
       {
         if(c == '"' || c == '\\')
         {
-          os << '\\';
+          os.push_back('\\');
         }
-        os << c;
+        os.push_back(c);
       }
-      os << '"';
+      os.push_back('"');
     }
   };
 
@@ -671,6 +1125,14 @@ namespace nm::json
           }
         }
         return {};
+      }
+
+      nullable<Token> peek()
+      {
+        auto saved = idx_next_;
+        auto r = next();
+        idx_next_ = saved;
+        return r;
       }
 
       // ensure call after next or behavior is undefined
@@ -826,6 +1288,361 @@ namespace nm::json
           return JsonValue::from_trace(token_.trace());
         }
         return this->parse_next(*token);
+      }
+
+      JsonValue parse2()
+      {
+        auto token = token_.next();
+        if(!token)
+        {
+          return {};
+        }
+        std::stack<JsonValue> st{};
+        st.push({});
+
+        std::stack<Token> pairs{};
+        std::stack<JsonValue> tmp;
+        bool is_key = true;
+
+        while(!st.empty())
+        {
+          auto& j = st.top();
+          switch(*token)
+          {
+          case Invalid:
+          {
+            return JsonValue::from_trace(token_.trace());
+          }
+          case Null:
+          case BooleanTrue:
+          case BooleanFalse:
+          case Number:
+          {
+            number_t num = 0;
+            if(*token == Number)
+            {
+              auto n = token_.read_number(token_.ch());
+              if(!n)
+              {
+                return JsonValue::from_trace(token_.trace());
+              }
+              num = *n;
+            }
+
+            auto next = token_.peek();
+            if(!next)
+            {
+              if(!pairs.empty() && (pairs.top() == BraceOn || pairs.top() == BracketOn)) // need more
+              {
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+
+            if(pairs.empty())
+            {
+              break;
+            }
+            if(pairs.top() == BracketOn)
+            {
+              switch(*next)
+              {
+              case Comma:
+              case BracketOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+            else if(pairs.top() == BraceOn)
+            {
+              switch(*next)
+              {
+              case Comma:
+              case BraceOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+
+            switch(*token)
+            {
+            case Null:
+              j = null_t{};
+              break;
+            case BooleanFalse:
+            case BooleanTrue:
+              j = *token == BooleanTrue;
+              break;
+            case Number:
+              j = num;
+              break;
+            default:
+              break;
+            }
+            break;
+          }
+          case String:
+          {
+            auto s = token_.read_string(token_.ch());
+            if(!s)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            auto next = token_.peek();
+            if(!next)
+            {
+              if(!pairs.empty() && (pairs.top() == BraceOn || pairs.top() == BracketOn))
+              {
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+            j = std::move(*s); // dirty and quick, no need to distinguish the key or value for object
+            if(pairs.empty())
+            {
+              break;
+            }
+            if(pairs.top() == BracketOn)
+            {
+              switch(*next)
+              {
+              case Comma:
+              case BracketOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+            else if(pairs.top() == BraceOn)
+            {
+              if(is_key)
+              {
+                if(*next != Colon)
+                {
+                  return JsonValue::from_trace(token_.trace());
+                }
+              }
+              else
+              {
+                switch(*next)
+                {
+                case Comma:
+                case BraceOff:
+                  break;
+                default:
+                  return JsonValue::from_trace(token_.trace());
+                }
+              }
+            }
+            break;
+          }
+          case BracketOn:
+          {
+            auto next = token_.peek();
+            if(!next)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            switch(*next)
+            {
+            case Comma:
+            case Colon:
+            case BraceOff:
+              return JsonValue::from_trace(token_.trace());
+            default:
+              break;
+            }
+            j = array_t{};
+            pairs.push(*token);
+            break;
+          }
+          case Comma:
+          {
+            if(pairs.empty())
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            auto next = token_.peek();
+            if(!next)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            if(pairs.top() == BracketOn)
+            {
+              switch(*next)
+              {
+              case Invalid:
+              case Comma:
+              case Colon:
+              case BracketOff:
+              case BraceOff:
+                return JsonValue::from_trace(token_.trace());
+              default:
+                break;
+              }
+            }
+            else if(pairs.top() == BraceOn)
+            {
+              switch(*next)
+              {
+              case String:
+              case BraceOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+              is_key = true;
+            }
+            break;
+          }
+          case Colon:
+          {
+            if(pairs.empty() || pairs.top() != BraceOn)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            auto next = token_.peek();
+            if(!next)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            switch(*next)
+            {
+            case Invalid:
+            case Comma:
+            case Colon:
+            case BracketOff:
+            case BraceOff:
+              return JsonValue::from_trace(token_.trace());
+            default:
+              break;
+            }
+            is_key = false;
+            break;
+          }
+          case BracketOff:
+          {
+            auto next = token_.peek();
+            if(next)
+            {
+              switch(*next)
+              {
+              case Comma:
+              case BracketOff:
+              case BraceOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+            if(pairs.empty() || pairs.top() != BracketOn)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+
+            while(!st.empty())
+            {
+              if(st.top().is_array() && st.top().as<array_t>().empty())
+              {
+                break;
+              }
+              tmp.push(st.top());
+              st.pop();
+            }
+            if(st.empty())
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            auto& parent = st.top();
+            while(!tmp.empty())
+            {
+              parent.as<array_t>().push_back(std::move(tmp.top()));
+              tmp.pop();
+            }
+            pairs.pop();
+            break;
+          }
+          case BraceOn:
+          {
+            auto next = token_.peek();
+            if(!next)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            switch(*next)
+            {
+            case String:
+            case BraceOff:
+              break;
+            default:
+              return JsonValue::from_trace(token_.trace());
+            }
+            j = object_t{};
+            pairs.push(*token);
+            is_key = true;
+            break;
+          }
+          case BraceOff:
+          {
+            auto next = token_.peek();
+            if(next)
+            {
+              switch(*next)
+              {
+              case Comma:
+              case BracketOff:
+              case BraceOff:
+                break;
+              default:
+                return JsonValue::from_trace(token_.trace());
+              }
+            }
+            if(pairs.empty() || pairs.top() != BraceOn)
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            while(!st.empty())
+            {
+              if(st.top().is_object() && st.top().as<object_t>().empty())
+              {
+                break;
+              }
+              tmp.push(st.top());
+              st.pop();
+            }
+            if(st.empty() || (tmp.size() % 2 != 0)) // not pair
+            {
+              return JsonValue::from_trace(token_.trace());
+            }
+            auto& parent = st.top();
+            while(!tmp.empty())
+            {
+              auto k = tmp.top();
+              tmp.pop();
+              auto v = tmp.top();
+              tmp.pop();
+              parent.as<object_t>().emplace(k.as<string_t>(), std::move(v));
+            }
+            pairs.pop();
+            break;
+          }
+          }
+
+          token = token_.next();
+          if(!token)
+          {
+            if(!pairs.empty())
+            {
+              break;
+            }
+            return st.top();
+          }
+          if(st.top() && *token != BraceOff && *token != BracketOff) // skip invalid, comma and colon
+          {
+            st.push({});
+          }
+        }
+        return JsonValue::from_trace(token_.trace());
       }
 
     private:
@@ -996,6 +1813,11 @@ namespace nm::json
           {
             nullable<std::string> key;
             auto token2 = token_.next();
+            if(!token2)
+            {
+              return JsonValue::from_trace(token_.trace());
+              ;
+            }
             switch(*token2)
             {
             case Token::String:
@@ -1041,6 +1863,14 @@ namespace nm::json
   {
     detail::Parser p{src};
     return p.parse();
+  }
+
+  // no stack limit
+  // NOTE: the result of parse2() is inverted (while parse() is as its input)
+  JsonValue parse2(const std::string& src)
+  {
+    detail::Parser p{src};
+    return p.parse2();
   }
 } // namespace nm::json
 
