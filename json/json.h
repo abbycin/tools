@@ -8,6 +8,7 @@
 #ifndef JSON_H_
 #define JSON_H_
 
+#include <cassert>
 #include <limits>
 #include <iomanip>
 #include <map>
@@ -20,7 +21,6 @@
 
 #ifndef NDEBUG
 #include <iostream>
-#include <cassert>
 struct debugger
 {
   debugger(const char* s, int n) { std::cerr << s << ':' << n << " => "; }
