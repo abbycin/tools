@@ -8,6 +8,7 @@
 #ifndef JSON_H_
 #define JSON_H_
 
+#include <limits>
 #include <iomanip>
 #include <map>
 #include <memory>
@@ -406,11 +407,13 @@ namespace nm::json
 
     JsonValue& operator[](const string_t& k) { return (*value_->object_)[k]; }
 
+    [[deprecated("use to_string2() instead")]]
     std::string to_string(bool* ok = nullptr) const { return to_string(true, 0, ok); }
 
+    [[deprecated("use to_string2() instead")]]
     std::string to_string(size_t indent, bool* ok = nullptr) const { return to_string(false, indent, ok); }
 
-    std::string to_string2(size_t indent = 1) const
+    std::string to_string2(size_t indent = 0) const
     {
       if(!*this)
       {
@@ -445,6 +448,7 @@ namespace nm::json
             {
             case Array:
               make_space(cur_indent, os, compact);
+              [[fallthrough]];
             case Value:
               os.append("null");
               os.push_back(',');
@@ -469,6 +473,7 @@ namespace nm::json
             {
             case Array:
               make_space(cur_indent, os, compact);
+              [[fallthrough]];
             case Value:
               os.append(j->bool_ ? "true" : "false");
               os.push_back(',');
@@ -503,6 +508,7 @@ namespace nm::json
             {
             case Array:
               make_space(cur_indent, os, compact);
+              [[fallthrough]];
             case Value:
               os.append(s);
               os.push_back(',');
@@ -574,7 +580,10 @@ namespace nm::json
             }
             else
             {
-              ct.pop(); // remove previous unpacked object
+              if(!ct.empty())
+              {
+                ct.pop(); // remove previous unpacked object
+              }
               os.erase(os.find_last_of(',')); // os always end at ','
               new_line(os, compact);
               make_space(cur_indent, os, compact);
@@ -632,7 +641,10 @@ namespace nm::json
             }
             else
             {
-              ct.pop(); // remove previous unpacked object
+              if(!ct.empty())
+              {
+                ct.pop(); // remove previous unpacked object
+              }
               os.erase(os.find_last_of(',')); // os always end at ','
               new_line(os, compact);
               make_space(cur_indent, os, compact);
@@ -1010,7 +1022,7 @@ namespace nm::json
 
   inline std::ostream& operator<<(std::ostream& os, const JsonValue& j)
   {
-    os << j.to_string();
+    os << j.to_string2();
     return os;
   }
 
@@ -1859,6 +1871,7 @@ namespace nm::json
     };
   } // namespace detail
 
+  [[deprecated("use parse2() instead")]]
   JsonValue parse(const std::string& src)
   {
     detail::Parser p{src};

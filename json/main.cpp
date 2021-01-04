@@ -75,7 +75,7 @@ int main()
     j["heterogeneous"] = json::null_t{};
     j2["heterogeneous"][0] = 1926;
     std::cout << j << '\n';
-    std::cout << j2.to_string2(0) << '\n';
+    std::cout << j2.to_string() << '\n';
   }
   return 0;
 }
