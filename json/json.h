@@ -407,11 +407,15 @@ namespace nm::json
 
     JsonValue& operator[](const string_t& k) { return (*value_->object_)[k]; }
 
-    [[deprecated("use to_string2() instead")]]
-    std::string to_string(bool* ok = nullptr) const { return to_string(true, 0, ok); }
+    [[deprecated("use to_string2() instead")]] std::string to_string(bool* ok = nullptr) const
+    {
+      return to_string(true, 0, ok);
+    }
 
-    [[deprecated("use to_string2() instead")]]
-    std::string to_string(size_t indent, bool* ok = nullptr) const { return to_string(false, indent, ok); }
+    [[deprecated("use to_string2() instead")]] std::string to_string(size_t indent, bool* ok = nullptr) const
+    {
+      return to_string(false, indent, ok);
+    }
 
     std::string to_string2(size_t indent = 0) const
     {
@@ -1871,8 +1875,7 @@ namespace nm::json
     };
   } // namespace detail
 
-  [[deprecated("use parse2() instead")]]
-  JsonValue parse(const std::string& src)
+  [[deprecated("use parse2() instead")]] JsonValue parse(const std::string& src)
   {
     detail::Parser p{src};
     return p.parse();
