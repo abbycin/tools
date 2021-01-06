@@ -10,10 +10,9 @@
 
 #include <cassert>
 #include <limits>
-#include <iomanip>
 #include <map>
 #include <memory>
-#include <set>
+#include <ranges>
 #include <stack>
 #include <sstream>
 #include <string>
@@ -569,7 +568,7 @@ namespace nm::json
             cur_indent += indent;
             tr.push(j); // trace
             st.push(j); // back to here
-            for(auto& v: *j->array_)
+            for(auto& v: std::ranges::views::reverse(*j->array_))
             {
               ct.push(Array);
               st.push(v.value_);
@@ -606,7 +605,7 @@ namespace nm::json
             os.push_back('[');
             tr.push(j);
             st.push(j);
-            for(auto& v: *j->array_)
+            for(auto& v: std::ranges::views::reverse(*j->array_))
             {
               ct.push(Array);
               st.push(v.value_);
@@ -622,7 +621,7 @@ namespace nm::json
             os.push_back('{');
             tr.push(j);
             st.push(j); // back to here
-            for(auto& [k, v]: *j->object_)
+            for(auto& [k, v]: std::ranges::views::reverse(*j->object_))
             {
               // invert
               ct.push(Value);
@@ -667,7 +666,7 @@ namespace nm::json
             os.push_back('{');
             tr.push(j);
             st.push(j);
-            for(auto& [k, v]: *j->object_)
+            for(auto& [k, v]: std::ranges::views::reverse(*j->object_))
             {
               // invert
               ct.push(Value);
@@ -1882,7 +1881,6 @@ namespace nm::json
   }
 
   // no stack limit
-  // NOTE: the result of parse2() is inverted (while parse() is as its input)
   JsonValue parse2(const std::string& src)
   {
     detail::Parser p{src};

@@ -6,6 +6,7 @@
 ***********************************************/
 
 #include "json.h"
+#include <iomanip>
 #include <iostream>
 
 int main()
