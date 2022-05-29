@@ -1,57 +1,61 @@
 /*********************************************************
-          File Name: main.cpp
-          Author: Abby Cin
-          Mail: abbytsing@gmail.com
-          Created Time: Thu 04 Apr 2019 01:42:50 PM DST
+	  File Name: main.cpp
+	  Author: Abby Cin
+	  Mail: abbytsing@gmail.com
+	  Created Time: Thu 04 Apr 2019 01:42:50 PM DST
 **********************************************************/
 
 #include "optional.h"
 #include <iostream>
 
-struct Bar
-{
-  explicit Bar(int z) : z_{z} {}
-  virtual ~Bar() {}
-  int z_;
+struct Bar {
+	explicit Bar(int z) : z_ { z }
+	{
+	}
+	virtual ~Bar()
+	{
+	}
+	int z_;
 };
 
-struct Foo : Bar
-{
-  Foo(int x, int y, int z) : Bar{z}, x_{x}, y_{y} {}
-  int x_;
-  int y_;
+struct Foo : Bar {
+	Foo(int x, int y, int z) : Bar { z }, x_ { x }, y_ { y }
+	{
+	}
+	int x_;
+	int y_;
 };
 
 int main()
 {
-  std::cerr << std::boolalpha;
+	std::cerr << std::boolalpha;
 
-  Optional<Bar> b{Bar{1}};
-  Optional<Bar> h = b;
-  Optional<Foo> o{1, 2, 3};
+	Optional<Bar> b { Bar { 1 } };
+	Optional<Bar> h = b;
+	Optional<Foo> o { 1, 2, 3 };
 
-  Optional<Foo> l{Foo{3, 2, 1}};
-  std::cerr << (bool)l << '\t' << o->x_ << '\n';
+	Optional<Foo> l { Foo { 3, 2, 1 } };
+	std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
-  o = std::move(l);
+	o = std::move(l);
 
-  std::cerr << (bool)l << '\t' << o->x_ << '\n';
+	std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
-  l = o;
+	l = o;
 
-  std::cerr << (bool)l << '\t' << o->x_ << '\n';
+	std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
-  l = Foo{2, 2, 2};
-  o = std::move(l);
-  std::cerr << (bool)l << '\t' << o->x_ << '\n';
+	l = Foo { 2, 2, 2 };
+	o = std::move(l);
+	std::cerr << (bool)l << '\t' << o->x_ << '\n';
 
-  Optional<Foo> m = o;
-  std::cerr << (bool)m << '\t' << m->x_ << '\n';
+	Optional<Foo> m = o;
+	std::cerr << (bool)m << '\t' << m->x_ << '\n';
 
-  Optional<int> io{1};
-  Optional<int> ha{};
-  io = Optional<int>();
-  std::cerr << (bool)io << '\n';
-  io = ha;
-  std::cerr << (bool)io << '\n';
+	Optional<int> io { 1 };
+	Optional<int> ha {};
+	io = Optional<int>();
+	std::cerr << (bool)io << '\n';
+	io = ha;
+	std::cerr << (bool)io << '\n';
 }

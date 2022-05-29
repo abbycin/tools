@@ -10,23 +10,23 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <random>
 #include <stdexcept>
 #include <utility>
 
 namespace nm
 {
-template<typename K, typename V, int LEVEL = 8>
+template<typename K, typename V, int LEVEL = 4>
 class SkipList {
 	static_assert(LEVEL > 0, "level must greater than 0");
 	class Node {
 	public:
-		Node(int level) : key_ {}, val_ {}, level_ { level }
+		Node(int level) : data_ {}, level_ { level }
 		{
 			layer_ = new Node *[level_ + 1] { 0 };
 		}
 
-		Node(K k, V v, int level)
-			: key_ { k }, val_ { v }, level_ { level }
+		Node(K k, V v, int level) : data_ { k, v }, level_ { level }
 		{
 			// level + 1, since we will index using level, namely
 			// range in [0, level]
@@ -38,10 +38,14 @@ class SkipList {
 			delete[] layer_;
 		}
 
+		const K &key() const
+		{
+			return data_.first;
+		}
+
 	private:
 		friend SkipList<K, V, LEVEL>;
-		K key_;
-		V val_;
+		std::pair<K, V> data_;
 		int level_;
 		Node **layer_;
 	};
@@ -49,34 +53,30 @@ class SkipList {
 public:
 	class iterator {
 	public:
-		iterator(Node *n) : node_ { n }
+		iterator(Node *n, int level) : level_ { level }, node_ { n }
 		{
-			if (node_)
-				p_ = std::make_pair(node_->key_, node_->val_);
 		}
 
+		// no check
 		iterator &operator++()
 		{
-			if (node_)
-				new (this)iterator{node_->layer_[0]};
-			else
-				throw std::out_of_range("iterator out range");
+			node_ = node_->layer_[level_];
 			return *this;
 		}
 
-		std::pair<K, V>& operator *()
+		const std::pair<K, V> &operator*() const
 		{
-			return p_;
+			return node_->data_;
 		}
 
-		K &key()
+		const std::pair<K, V> *operator->() const
 		{
-			return node_->key_;
+			return &node_->data_;
 		}
 
-		V &val()
+		operator bool()
 		{
-			return node_->val_;
+			return node_ != nullptr;
 		}
 
 		friend bool operator==(const iterator &l, const iterator &r)
@@ -90,7 +90,7 @@ public:
 		}
 
 	private:
-		std::pair<K, V> p_;
+		int level_;
 		Node *node_;
 	};
 
@@ -111,11 +111,11 @@ public:
 	{
 		Node *update[LEVEL + 1] { 0 };
 		Node *cur = header_;
-		int level;
+		int rand_level;
 		int i;
 
 		for (i = cur_; i >= 0; i--) {
-			while (cur->layer_[i] && cur->layer_[i]->key_ < key)
+			while (cur->layer_[i] && cur->layer_[i]->key() < key)
 				cur = cur->layer_[i];
 
 			update[i] = cur;
@@ -124,22 +124,22 @@ public:
 		cur = cur->layer_[0];
 
 		// already exists
-		if (cur && cur->key_ == key)
+		if (cur && cur->key() == key)
 			return false;
 
-		level = gen_random_level();
+		rand_level = level(d_, g_);
 
 		// in this case, we create a new level by set update to header_
-		if (level > cur_) {
-			for (i = cur_ + 1; i < level + 1; i++)
+		if (rand_level > cur_) {
+			for (i = cur_ + 1; i < rand_level + 1; i++)
 				update[i] = header_;
-			cur_ = level;
+			cur_ = rand_level;
 		}
 
-		cur = new Node { key, value, level };
+		cur = new Node { key, value, rand_level };
 
 		// insert to each level
-		for (i = 0; i <= level; i++) {
+		for (i = 0; i <= rand_level; i++) {
 			cur->layer_[i] = update[i]->layer_[i];
 			update[i]->layer_[i] = cur;
 		}
@@ -153,13 +153,14 @@ public:
 		Node *cur = header_;
 
 		for (int i = cur_; i >= 0; i--) {
-			while (cur->layer_[i] && cur->layer_[i]->key_ < key)
+			while (cur->layer_[i] && cur->layer_[i]->key() < key)
 				cur = cur->layer_[i];
 		}
 
-		return cur && cur->layer_[0]->key_ == key;
+		return cur && cur->layer_[0] && cur->layer_[0]->key() == key;
 	}
 
+	// range in [from, to)
 	std::pair<iterator, iterator> range(K from, K to)
 	{
 		if (from > to)
@@ -168,19 +169,22 @@ public:
 		Node *f = search(from);
 		Node *t = search(to);
 
-		if (t && t->layer_[0])
-			t = t->layer_[0];
-		return std::make_pair(iterator { f }, iterator { t });
+		return std::make_pair(iterator { f, 0 }, iterator { t, 0 });
 	}
 
 	iterator begin()
 	{
-		return { header_->layer_[0] };
+		return { header_->layer_[0], 0 };
 	}
 
 	iterator end()
 	{
-		return { nullptr };
+		return { nullptr, 0 };
+	}
+
+	iterator begin(int level)
+	{
+		return { header_->layer_[level], level };
 	}
 
 	bool remove(K key)
@@ -190,13 +194,13 @@ public:
 		int i;
 
 		for (i = cur_; i >= 0; i--) {
-			while (cur->layer_[i] && cur->layer_[i]->key_ < key)
+			while (cur->layer_[i] && cur->layer_[i]->key() < key)
 				cur = cur->layer_[i];
 			update[i] = cur;
 		}
 
 		cur = cur->layer_[0];
-		if (cur && cur->key_ == key) {
+		if (cur && cur->key() == key) {
 			// remove from each level
 			for (int i = 0; i <= cur_; i++) {
 				// this level has no cur
@@ -214,25 +218,32 @@ public:
 		return false;
 	}
 
+	constexpr int level() const
+	{
+		return LEVEL;
+	}
+
 	size_t size()
 	{
 		return size_;
 	}
 
 private:
+	inline static std::random_device rd;
 	int cur_;
 	size_t size_;
 	Node *header_;
+	std::mt19937 g_ { rd() };
+	std::uniform_int_distribution<> d_ { 0, 1 };
 
-	static int gen_random_level()
+	static int level(std::uniform_int_distribution<> &d, std::mt19937 &g)
 	{
-		int k = 1;
+		int r;
 
-		while (rand() % 2) {
-			k++;
-		}
-		k = (k < LEVEL) ? k : LEVEL;
-		return k;
+		for (r = 0; r < LEVEL; ++r)
+			if (d(g) == 0)
+				break;
+		return r;
 	}
 
 	// example:
@@ -254,12 +265,12 @@ private:
 		delete head;
 	}
 
-	Node* search(K key)
+	Node *search(K key)
 	{
 		Node *cur = header_;
 
 		for (int i = cur_; i >= 0; --i) {
-			while (cur->layer_[i] && cur->layer_[i]->key_ < key)
+			while (cur->layer_[i] && cur->layer_[i]->key() < key)
 				cur = cur->layer_[i];
 		}
 		if (cur)

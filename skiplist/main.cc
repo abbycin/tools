@@ -6,15 +6,18 @@
  */
 
 #include "skiplist.h"
+#include <cstdlib>
 #include <iostream>
 
 int main()
 {
 	using nm::SkipList;
-	SkipList<int, int> sl {};
+	SkipList<int, int, 4> sl {};
+	srand(time(NULL));
+	int limit = 16;
 
-	for (int i = 0; i < 10; ++i)
-		sl.insert(i, rand() % 20);
+	for (int i = 0; i < limit; ++i)
+		sl.insert(i, rand() % limit);
 
 	std::cout << std::boolalpha;
 	std::cout << "contains key 4?" << sl.contains(4) << '\n';
@@ -24,13 +27,25 @@ int main()
 	std::cout << "size " << sl.size() << '\n';
 
 	std::cout << "iterate\n";
-	for (auto& x : sl)
+	for (auto &x : sl)
 		std::cout << x.first << " : " << x.second << '\n';
 
 	std::cout << "range\n";
-	auto [b, e] = sl.range(4, 6);
+	sl.remove(6);
+	auto [b, e] = sl.range(4, 8);
 	while (b != e) {
-		printf("%d => %d\n", b.key(), b.val());
+		printf("%d => %d\n", b->first, b->second);
 		++b;
+	}
+
+	std::cout << "dump\n";
+	for (int i = sl.level(); i >= 0; --i) {
+		auto b = sl.begin(i);
+		std::cout << "-------- level " << i << " ---------\n";
+		while (b) {
+			printf("[%d, %d] ", b->first, b->second);
+			++b;
+		}
+		std::cout << '\n';
 	}
 }
