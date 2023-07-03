@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 	std::uniform_int_distribution<std::mt19937::result_type> dist(1, n);
 	FILE *fp = fopen(argv[2], "w");
 	for (; n > 0; --n) {
-		fprintf(fp, "%d\n", dist(rng));
+		fprintf(fp, "%lu\n", dist(rng));
 	}
 	fclose(fp);
 }
