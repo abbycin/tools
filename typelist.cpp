@@ -12,11 +12,9 @@ namespace nm
 namespace meta
 {
 	template<typename...>
-	struct TypeList {
-	};
+	struct TypeList { };
 	template<>
-	struct TypeList<> {
-	};
+	struct TypeList<> { };
 
 	template<typename>
 	struct Len;

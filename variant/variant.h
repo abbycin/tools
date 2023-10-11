@@ -275,41 +275,33 @@ namespace meta
 		};
 
 		template<typename R, typename A>
-		struct extract<R (*)(A)> : extract<R(A)> {
-		};
+		struct extract<R (*)(A)> : extract<R(A)> { };
 
 		template<typename R, typename A>
-		struct extract<std::function<R(A)>> : extract<R(A)> {
-		};
+		struct extract<std::function<R(A)>> : extract<R(A)> { };
 
 		template<typename R, typename Class, typename A>
-		struct extract<R (Class::*)(A)> : extract<R(A)> {
-		};
+		struct extract<R (Class::*)(A)> : extract<R(A)> { };
 
 		template<typename R, typename Class, typename A>
-		struct extract<R (Class::*)(A) const> : extract<R(A)> {
-		};
+		struct extract<R (Class::*)(A) const> : extract<R(A)> { };
 
 		template<typename R, typename Class, typename A>
-		struct extract<R (Class::*)(A) volatile> : extract<R(A)> {
-		};
+		struct extract<R (Class::*)(A) volatile> : extract<R(A)> { };
 
 		template<typename R, typename Class, typename A>
 		struct extract<R (Class::*)(A) const volatile> : extract<R(A)> {
 		};
 
 		template<typename lambda>
-		struct extract : extract<decltype(&lambda::operator())> {
-		};
+		struct extract : extract<decltype(&lambda::operator())> { };
 
 		template<typename lambda>
 		struct extract<lambda &>
-			: extract<decltype(&lambda::operator())> {
-		};
+			: extract<decltype(&lambda::operator())> { };
 
 		template<typename lambda>
-		struct extract<lambda &&> : extract<lambda &> {
-		};
+		struct extract<lambda &&> : extract<lambda &> { };
 
 	public:
 		using arg = typename std::remove_cv<

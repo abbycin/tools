@@ -78,16 +78,14 @@ namespace meta
 
 	template<typename T1, typename T2, template<typename> class Class>
 	class GenClasses<TypeList<T1, T2>, Class>
-		: public GenClasses<T1, Class>, public GenClasses<T2, Class> {
-	};
+		: public GenClasses<T1, Class>,
+		  public GenClasses<T2, Class> { };
 
 	template<typename T, template<typename> class Class>
-	class GenClasses : public Class<T> {
-	};
+	class GenClasses : public Class<T> { };
 
 	template<template<typename> class Class>
-	class GenClasses<Nil, Class> {
-	};
+	class GenClasses<Nil, Class> { };
 
 }
 
