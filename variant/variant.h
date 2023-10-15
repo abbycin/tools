@@ -724,7 +724,7 @@ private:
 		}
 		data_type data_;
 	};
-	Data data_;
+	Data data_ {};
 
 	template<typename T>
 	void check()
