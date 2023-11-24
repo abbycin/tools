@@ -24,36 +24,29 @@ namespace meta
 		using res_t = R;
 	};
 	template<typename R, typename... Args>
-	struct Inspector<R (*)(Args...)> : Inspector<R(Args...)> {
-	};
+	struct Inspector<R (*)(Args...)> : Inspector<R(Args...)> { };
 	template<typename R, typename... Args>
-	struct Inspector<R (&)(Args...)> : Inspector<R(Args...)> {
-	};
+	struct Inspector<R (&)(Args...)> : Inspector<R(Args...)> { };
 	template<typename R, typename Object, typename... Args>
-	struct Inspector<R (Object::*)(Args...)> : Inspector<R(Args...)> {
-	};
+	struct Inspector<R (Object::*)(Args...)> : Inspector<R(Args...)> { };
 	template<typename R, typename Object, typename... Args>
 	struct Inspector<R (Object::*)(Args...) const> : Inspector<R(Args...)> {
 	};
 	template<typename R, typename Object, typename... Args>
 	struct Inspector<R (Object::*)(Args...) volatile>
-		: Inspector<R(Args...)> {
-	};
+		: Inspector<R(Args...)> { };
 	template<typename R, typename Object, typename... Args>
 	struct Inspector<R (Object::*)(Args...) const volatile>
-		: Inspector<R(Args...)> {
-	};
+		: Inspector<R(Args...)> { };
 
 	// functor like
 	template<typename Lambda>
-	struct Inspector : Inspector<decltype(&Lambda::operator())> {
-	};
+	struct Inspector : Inspector<decltype(&Lambda::operator())> { };
 	template<typename Lambda>
 	struct Inspector<Lambda &> : Inspector<decltype(&Lambda::operator())> {
 	};
 	template<typename Lambda>
-	struct Inspector<Lambda &&> : Inspector<Lambda &> {
-	};
+	struct Inspector<Lambda &&> : Inspector<Lambda &> { };
 }
 }
 

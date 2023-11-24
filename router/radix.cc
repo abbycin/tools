@@ -155,7 +155,7 @@ private:
     else if(path.size() < n->path.size())
     {
       // doge, did
-      int i = common_prefix(n->path, path);
+      auto i = common_prefix(n->path, path);
       if(i < path.size())
       {
         path = path.substr(i);
@@ -191,7 +191,7 @@ private:
 
   static size_t common_prefix(const std::string_view& l, const std::string_view& r)
   {
-    int m = std::min(l.size(), r.size());
+    auto m = std::min(l.size(), r.size());
     size_t i = 0;
     for(; i < m && l[i] == r[i];)
     {
