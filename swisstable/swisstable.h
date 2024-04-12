@@ -21,12 +21,8 @@ namespace detail
 {
 	template<typename T>
 	concept Hashable = requires(T t) {
-		{
-			t.data()
-		} -> std::convertible_to<const void *>;
-		{
-			t.size()
-		} -> std::convertible_to<uint64_t>;
+		{ t.data() } -> std::convertible_to<const void *>;
+		{ t.size() } -> std::convertible_to<uint64_t>;
 	};
 }
 
@@ -126,12 +122,8 @@ namespace detail
 {
 	template<typename Policy, typename Hash, typename Eq>
 	concept hash_constraint = requires(const typename Policy::key_type &k) {
-		{
-			Hash::hash(k)
-		} -> std::convertible_to<uint64_t>;
-		{
-			Eq::eq(k, k)
-		} -> std::convertible_to<bool>;
+		{ Hash::hash(k) } -> std::convertible_to<uint64_t>;
+		{ Eq::eq(k, k) } -> std::convertible_to<bool>;
 	};
 
 	// NOTE: prefer moving to copying
@@ -236,8 +228,6 @@ namespace detail
 
 		~Swiss()
 		{
-			if (ctrl_)
-				clear();
 			delete[] ctrl_;
 			ctrl_ = nullptr;
 		}
