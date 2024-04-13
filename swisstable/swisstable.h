@@ -9,6 +9,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <concepts>
 #include <cstdint>
 #include <cstring>
 #include <emmintrin.h>
@@ -121,7 +122,7 @@ struct SwissEq {
 namespace detail
 {
 	template<typename Policy, typename Hash, typename Eq>
-	concept hash_constraint = requires(const typename Policy::key_type &k) {
+	concept key_constraint = requires(const typename Policy::key_type &k) {
 		{ Hash::hash(k) } -> std::convertible_to<uint64_t>;
 		{ Eq::eq(k, k) } -> std::convertible_to<bool>;
 	};
@@ -130,7 +131,9 @@ namespace detail
 	template<typename Policy,
 		 typename Hash = SwissHash,
 		 typename Eq = SwissEq>
-		requires hash_constraint<Policy, Hash, Eq>
+		requires key_constraint<Policy, Hash, Eq> &&
+		std::move_constructible<typename Policy::key_type> &&
+		std::copy_constructible<typename Policy::key_type>
 	class Swiss {
 		enum ctrl_t : int8_t {
 			k_empty = -128,
@@ -228,7 +231,9 @@ namespace detail
 
 		~Swiss()
 		{
-			delete[] ctrl_;
+			if (ctrl_)
+				clear();
+			free(ctrl_);
 			ctrl_ = nullptr;
 		}
 
@@ -299,12 +304,15 @@ namespace detail
 
 		iterator insert(const value_type &key)
 		{
-			return try_insert(key);
+			auto v = key;
+			return try_insert(std::move(v));
 		}
 
-		iterator insert(value_type &&key)
+		template<typename... Args>
+		iterator emplace(Args &&...args)
 		{
-			return try_insert(std::move(key));
+			return try_insert(
+				value_type { std::forward<Args>(args)... });
 		}
 
 		template<typename T>
@@ -564,7 +572,7 @@ namespace detail
 		{
 			static_assert(sizeof(ctrl_t) == 1);
 			auto size = slot_bytes(cap) + ctrl_bytes(cap);
-			*ctrl = new ctrl_t[size];
+			*ctrl = reinterpret_cast<ctrl_t *>(malloc(size));
 			*slot = reinterpret_cast<value_type *>(
 				*ctrl + slot_offset(cap));
 			std::memset(*ctrl, k_empty, ctrl_bytes(cap));
@@ -592,8 +600,7 @@ namespace detail
 			__builtin_prefetch(slot_ + offset, 0, 3);
 		}
 
-		template<typename Value>
-		iterator try_insert(Value &&v)
+		iterator try_insert(value_type &&v)
 		{
 			if (load_factor() > max_load_factor())
 				reserve(calc_cap(groups_ * 2));
@@ -618,9 +625,8 @@ namespace detail
 				if (m) {
 					auto pos = seq.offset(*m);
 					set_ctrl(ctrl_, pos, h2, cap_);
-					std::construct_at(
-						slot_ + pos,
-						std::forward<Value>(v));
+					std::construct_at(slot_ + pos,
+							  std::move(v));
 					elems_ += 1;
 					return iterator_at(pos);
 				}

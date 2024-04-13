@@ -38,6 +38,7 @@ public:
 	using Base::begin;
 	using Base::end;
 	using Base::insert;
+	using Base::emplace;
 	using Base::erase;
 	using Base::reserve;
 	using Base::find;
@@ -47,12 +48,6 @@ public:
 	{
 		for (auto &x : il)
 			insert(x);
-	}
-
-	template<typename K, typename V>
-	iterator emplace(K &&k, V &&v)
-	{
-		return insert({ std::forward<K>(k), std::forward<V>(v) });
 	}
 
 	Val &operator[](const Key &k)

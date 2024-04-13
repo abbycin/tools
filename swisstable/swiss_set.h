@@ -36,6 +36,7 @@ public:
 	using Base::begin;
 	using Base::end;
 	using Base::insert;
+	using Base::emplace;
 	using Base::erase;
 	using Base::reserve;
 	using Base::find;
@@ -45,12 +46,6 @@ public:
 	{
 		for (auto &&x : il)
 			insert(x);
-	}
-
-	template<typename... Args>
-	iterator emplace(Args &&...args)
-	{
-		return insert({ std::forward<Args>(args)... });
 	}
 };
 }
