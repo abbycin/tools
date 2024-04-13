@@ -341,7 +341,7 @@ namespace detail
 			if (size > cap_) {
 				Swiss tmp { size };
 				for (auto &i : *this)
-					tmp.insert(std::move(i));
+					tmp.emplace(std::move(i));
 				*this = std::move(tmp);
 			}
 		}
