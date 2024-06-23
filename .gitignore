@@ -1,5 +1,7 @@
 #CLion
 .idea
+# vscode
+.vscode
 #
 bin
 *.swp
