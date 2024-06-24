@@ -18,12 +18,7 @@ namespace nm
 {
 template<typename Key>
 concept BpTreeLess = requires(Key l, Key r) {
-	{
-		l < r
-	} -> std::convertible_to<bool>;
-	{
-		r < l
-	} -> std::convertible_to<bool>;
+	{ l <=> r } -> std::same_as<std::strong_ordering>;
 };
 
 template<typename Policy, int M = 3>
