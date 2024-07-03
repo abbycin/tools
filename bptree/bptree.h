@@ -18,7 +18,9 @@ namespace nm
 {
 template<typename Key>
 concept BpTreeLess = requires(Key l, Key r) {
-	{ l <=> r } -> std::same_as<std::strong_ordering>;
+	{
+		l <=> r
+	} -> std::same_as<std::strong_ordering>;
 };
 
 template<typename Policy, int M = 3>
@@ -226,20 +228,24 @@ public:
 
 		// adjust left boundary
 		if (!_b) {
-			if (beg == l->count)
+			if (beg == l->count) {
 				l = to_leaf(l->next);
-			if (!l)
-				return {};
-			beg = 0;
+				if (!l)
+					return {};
+				beg = 0;
+			}
 		}
 
 		// adjust right boundary
 		if (!_e) {
-			if (end == 0)
+			if (end == 0) {
 				r = to_leaf(r->prev);
-			if (!r)
-				return {};
-			end -= r->count - 1;
+				if (!r)
+					return {};
+				end = r->count - 1;
+			} else {
+				end -= 1;
+			}
 		}
 
 		return { l, r, (short)beg, (short)end };
