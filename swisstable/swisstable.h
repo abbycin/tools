@@ -208,7 +208,7 @@ namespace detail
 			value_type *slot;
 		};
 
-		explicit Swiss(uint64_t size = k_width * 2)
+		explicit Swiss(uint64_t size = k_width)
 			: elems_ { 0 }
 			, groups_ { calc_groups(size) }
 			, cap_ { calc_cap(groups_) }
@@ -408,9 +408,10 @@ namespace detail
 
 			void next()
 			{
+				assert(group_ <= mask_);
 				group_ += k_width;
 				offset_ += group_;
-				offset_ = offset_ & mask_;
+				offset_ &= mask_;
 			}
 
 			uint64_t offset() const
@@ -431,7 +432,7 @@ namespace detail
 
 		class matcher {
 		public:
-			matcher(int32_t x) : val_ { static_cast<uint32_t>(x) }
+			matcher(int32_t x) : val_ { static_cast<uint16_t>(x) }
 			{
 			}
 
@@ -449,11 +450,24 @@ namespace detail
 			int operator*() const
 			{
 				assert(val_ != 0);
-				return __builtin_ctz(val_);
+				return std::countr_zero(val_);
+			}
+
+			int trailing_zero() const
+			{
+				return std::countr_zero(val_);
+			}
+
+			int leading_zero() const
+			{
+				return std::countl_zero(val_);
 			}
 
 		private:
-			uint32_t val_;
+			// NOTE: the SSE2 output in lower 16bits of int, it's a
+			// problem for `leading_zero`, either left shift 16bits
+			// in `leading_zero` or simply store the lower 16bits
+			uint16_t val_;
 		};
 
 		class group {
@@ -473,7 +487,7 @@ namespace detail
 
 			matcher match_empty()
 			{
-				auto pattern = _mm_set1_epi8(k_empty);
+				auto pattern = _mm_set1_epi8((char)k_empty);
 				return match(pattern);
 			}
 
@@ -484,10 +498,10 @@ namespace detail
 					_mm_cmpgt_epi8(p, ctrl_)) };
 			}
 
-			uint32_t ctl_empty_or_delete()
+			int ctl_empty_or_delete()
 			{
 				const __m128i p = _mm_set1_epi8(k_sentinel);
-				return __builtin_ctz(static_cast<uint32_t>(
+				return std::countr_zero(static_cast<uint32_t>(
 					_mm_movemask_epi8(
 						_mm_cmpgt_epi8(p, ctrl_)) +
 					1));
@@ -514,12 +528,15 @@ namespace detail
 			return x + 1;
 		}
 
+		static constexpr uint64_t roundup(uint64_t size, int align)
+		{
+			return (size + align - 1) & ~(align - 1);
+		}
+
 		static constexpr uint64_t calc_groups(uint64_t size)
 		{
-			if (size < 2 * k_width)
-				size = 2 * k_width; // avoid corner case
-			uint64_t x = size / k_width;
-			return next_power_of_2(x);
+			auto x = roundup(size, k_width) * k_width;
+			return next_power_of_2(x / k_width);
 		}
 
 		static constexpr uint64_t calc_cap(uint64_t groups)
@@ -561,17 +578,18 @@ namespace detail
 		static constexpr void
 		set_ctrl(ctrl_t *ctrl, uint64_t i, ctrl_t h2, uint64_t mask)
 		{
-			ctrl[i] = h2;
+			auto j = ((i - k_width) & mask) + k_width;
 			// since sse can't round from end to begin
 			// we extend begin to the end, see new_table、ctrl_bytes
-			ctrl[((i - k_clone) & mask) + (k_clone & mask)] = h2;
+			ctrl[i] = h2;
+			ctrl[j] = h2;
 		}
 
 		static void
 		new_table(uint64_t cap, ctrl_t **ctrl, value_type **slot)
 		{
 			static_assert(sizeof(ctrl_t) == 1);
-			auto size = slot_bytes(cap) + ctrl_bytes(cap);
+			auto size = slot_bytes(cap);
 			*ctrl = reinterpret_cast<ctrl_t *>(malloc(size));
 			*slot = reinterpret_cast<value_type *>(
 				*ctrl + slot_offset(cap));
@@ -584,13 +602,29 @@ namespace detail
 			return iterator { ctrl_ + pos, slot_ + pos };
 		}
 
+		// invalidate is tricky, if we simply set to `k_deleted` we will
+		// cause dead loop in find when all elements are deleted to
+		// solve the problem
+		// 1. search the Group for EMPTY in parallel (match_empty), and
+		//    record the first empty found (“end”)
+		// 2. load the Group of bytes before that bucket search the
+		//    Group for EMPTY in parallel (match_empty), and record the
+		//    last empty found (“start”)
+		// 3. if the distance between start and end is >= WIDTH, set the
+		//    bucket to DELETED otherwise, set the bucket to EMPTY
 		void invalidate(const ctrl_t *item)
 		{
-			// NOTE: can't set to k_empty, since insert and
-			// find rely on k_empty to stop search
-			uint64_t offset = item - ctrl_;
-			set_ctrl(ctrl_, offset, k_deleted, cap_);
-			std::destroy_at(slot_ + offset);
+			uint64_t index = item - ctrl_;
+			auto left = (index - k_width) & cap_;
+			auto before = group { ctrl_ + left }.match_empty();
+			auto after = group { item }.match_empty();
+
+			auto not_full = before && after &&
+				before.leading_zero() + after.trailing_zero() <
+					k_width;
+			auto h2 = not_full ? k_empty : k_deleted;
+			set_ctrl(ctrl_, index, h2, cap_);
+			std::destroy_at(slot_ + index);
 		}
 
 		void prefetch(uint64_t offset) const
